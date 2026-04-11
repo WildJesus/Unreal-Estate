@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "sharp": "^0.34.5",
     "typescript": "^5.4.0",
     "vite": "^5.2.0"
   }

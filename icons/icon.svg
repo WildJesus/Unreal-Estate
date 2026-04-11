@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Deep space background -->
+  <rect width="128" height="128" rx="22" fill="#0e0c2a"/>
+
+  <!-- Stars -->
+  <circle cx="16" cy="16" r="1.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="112" cy="22" r="1.2" fill="#ffffff" opacity="0.5"/>
+  <circle cx="118" cy="72" r="1.8" fill="#ffffff" opacity="0.6"/>
+  <circle cx="10"  cy="90" r="1.2" fill="#ffffff" opacity="0.4"/>
+  <circle cx="104" cy="108" r="1.5" fill="#ffffff" opacity="0.5"/>
+  <circle cx="22"  cy="108" r="1.0" fill="#ffffff" opacity="0.4"/>
+
+  <!-- Orbital ring — back half (behind house) -->
+  <ellipse cx="64" cy="78" rx="50" ry="17"
+    fill="none" stroke="#38bdf8" stroke-width="2.5"
+    stroke-dasharray="70 88" stroke-dashoffset="0"
+    opacity="0.85"/>
+
+  <!-- House -->
+  <!-- Roof -->
+  <polygon points="64,18 100,58 28,58" fill="#f8fafc"/>
+  <!-- Chimney -->
+  <rect x="76" y="28" width="9" height="22" fill="#f8fafc"/>
+  <!-- Walls -->
+  <rect x="34" y="57" width="60" height="42" fill="#dbeafe"/>
+  <!-- Door -->
+  <rect x="52" y="74" width="24" height="25" rx="4" fill="#0e0c2a"/>
+  <!-- Door knob -->
+  <circle cx="71" cy="87" r="2" fill="#fbbf24"/>
+  <!-- Window left -->
+  <rect x="39" y="65" width="14" height="13" rx="2.5" fill="#fef08a" opacity="0.95"/>
+  <!-- Window right -->
+  <rect x="75" y="65" width="14" height="13" rx="2.5" fill="#fef08a" opacity="0.95"/>
+
+  <!-- Orbital ring — front half (over house) -->
+  <ellipse cx="64" cy="78" rx="50" ry="17"
+    fill="none" stroke="#38bdf8" stroke-width="2.5"
+    stroke-dasharray="0 70 88 0" stroke-dashoffset="0"
+    opacity="0.85"/>
+
+  <!-- Glowing dot on ring (like a planet) -->
+  <circle cx="114" cy="78" r="4.5" fill="#7dd3fc"/>
+  <circle cx="114" cy="78" r="2.5" fill="#f0f9ff"/>
+</svg>

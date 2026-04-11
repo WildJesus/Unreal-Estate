@@ -1,20 +1,37 @@
 {
   "manifest_version": 3,
   "name": "Srealitky Universes",
-  "version": "0.1.0",
+  "version": "0.1.9",
   "description": "See property prices adjusted for historical or cross-city affordability ratios.",
-  "permissions": [],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Toggle Srealitky Universes",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["activeTab"],
   "content_scripts": [
     {
       "matches": ["https://www.sreality.cz/*"],
-      "js": ["dist/content.js"],
-      "css": ["dist/sidebar.css"],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["dist/sidebar.js", "data/*.json"],
+      "resources": ["sidebar.js", "data/*.json"],
       "matches": ["https://www.sreality.cz/*"]
     }
   ]
