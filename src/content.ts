@@ -1,20 +1,18 @@
 // Content script — injected into every sreality.cz page.
 
 import {
-  DEFAULTS,
-  mortgagePaymentFactor,
-  monthlyMortgagePayment,
-  computeAdjustedPrice,
-  computePercentChange,
+  computeBurdenComparison,
   formatCZK,
+  formatBurdenPercent,
+  formatMultiplier,
   parseCzechPrice,
 } from "./universes/calc";
-import { getCurrentYearData, getYearData } from "./universes/data";
+import { getCurrentYearData } from "./universes/data";
 
 // Snapshot of current-year economic data. Evaluated once at module load — the
 // page doesn't live long enough for this to become stale.
 const CURRENT = getCurrentYearData();
-import { type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
+import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
 const VERSION = "0.3.0";
 
@@ -881,68 +879,49 @@ function hideMainOverlay() {
   if (!debugVisible) removeHighlights();
 }
 
-// ─── Listing classification ───────────────────────────────────────────────────
-// For MVP, only Prague new-builds qualify for the affordability calculation.
-// Classification reads text content from the nearest useful container — it is
-// intentionally conservative: uncertain listings produce no widget rather than
-// showing wrong numbers.
-
-function classifyCard(el: Element): "prague_new_flat" | "unknown" {
-  // Walk up to get enough text context for a whole listing card.
-  let container: Element = el;
-  for (let i = 0; i < 8; i++) {
-    const p = container.parentElement;
-    if (!p || p === document.body) break;
-    container = p;
-  }
-  const text = container.textContent ?? "";
-  const hasPrague   = /Praha/i.test(text);
-  const hasNewBuild = /novostavba|nov[áý]\s+stavba|nov[ýé]\s+byt/i.test(text);
-  return hasPrague && hasNewBuild ? "prague_new_flat" : "unknown";
-}
-
-function classifyDetailPage(): "prague_new_flat" | "unknown" {
-  const text = document.body.textContent ?? "";
-  const hasPrague   = /Praha/i.test(text);
-  const hasNewBuild = /novostavba|nov[áý]\s+stavba|nov[ýé]\s+byt/i.test(text);
-  return hasPrague && hasNewBuild ? "prague_new_flat" : "unknown";
-}
-
 // ─── Comparison CSS (listing-page inline widgets) ─────────────────────────────
 
 function ensureComparisonCSS() {
   if (comparisonCSSInjected) return;
   comparisonCSSInjected = true;
   const style = document.createElement("style");
-  // Single-line affordability strip hooked below the detected price element.
-  // Left border is the visual connector to the price above.
+  // Two-row burden widget hooked below each detected price element.
+  // Row 1: year tag + stress multiplier + current burden%.
+  // Row 2: burden-equivalent price + historical → current monthly payments.
   style.textContent = `
     .su-comp-widget {
-      display: flex; align-items: center; gap: 7px;
-      margin-top: 3px; padding: 5px 11px 5px 8px;
+      display: flex; flex-direction: column; gap: 4px;
+      margin-top: 4px; padding: 6px 12px 6px 10px;
       background: rgba(28,18,8,0.96);
       border-left: 3px solid rgba(249,115,22,0.55);
-      border-radius: 0 7px 7px 0;
+      border-radius: 0 8px 8px 0;
       font-family: 'Quicksand', system-ui, sans-serif;
-      white-space: nowrap; line-height: 1;
-      max-width: max-content;
+      line-height: 1; max-width: max-content;
       box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      transition: opacity 0.2s;
+    }
+    .su-cw-row1, .su-cw-row2 {
+      display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     .su-cw-year {
       font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       color: #fb923c; background: rgba(249,115,22,0.14);
       padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
     }
+    .su-cw-mult { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .su-cw-worse  { color: #fb923c; }
+    .su-cw-better { color: #4ade80; }
+    .su-cw-burden { font-size: 11px; font-weight: 600; color: #a38d72; }
+    .su-cw-sep    { color: #5a4a38; font-size: 11px; }
+    .su-cw-est    { font-size: 9px; color: #6b5a44; letter-spacing: 0.04em; }
+    .su-cw-equiv-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: #6b5a44;
+    }
     .su-cw-price {
-      font-size: 14px; font-weight: 700; color: #fef3c7;
+      font-size: 13px; font-weight: 700; color: #fb923c;
       font-variant-numeric: tabular-nums;
     }
-    .su-cw-pct {
-      font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
-    }
-    .su-cw-down { color: #4ade80; background: rgba(74,222,128,0.15); }
-    .su-cw-up   { color: #fb923c; background: rgba(249,115,22,0.15); }
-    .su-cw-sep  { color: #5a4a38; font-size: 11px; }
     .su-cw-mort {
       font-size: 11px; font-weight: 600; color: #a38d72;
       font-variant-numeric: tabular-nums;
@@ -967,7 +946,6 @@ function renderListingComparisons() {
   if (mainOverlayEl && yearChk && !yearChk.checked) return;
 
   ensureComparisonCSS();
-  const targetData = getYearData(activeYear);
 
   for (const priceEl of highlightedEls) {
     // Skip elements inside our own overlays.
@@ -978,43 +956,43 @@ function renderListingComparisons() {
     if (priceText.includes("/měs")) continue;
 
     const currentPrice = parseCzechPrice(priceText);
-    if (currentPrice === null) continue;
+    if (currentPrice === null || currentPrice === 0) continue;
 
     const widget = document.createElement("div");
     widget.className = "su-comp-widget";
 
-    if (!targetData) {
-      widget.innerHTML = `<span class="su-cw-year">${activeYear}</span><span style="font-size:10px;font-style:italic;color:#6b5a44;">no data</span>`;
-      priceEl.after(widget);
-      comparisonEls.push(widget);
-      continue;
+    try {
+      // Per-card location → page location → Praha fallback.
+      const cardLoc = extractLocationFromCard(priceEl);
+      const region: CzechRegion = (cardLoc ?? detectedLocation)?.region ?? "praha";
+      const isEstimated = !cardLoc && !detectedLocation;
+
+      const c = computeBurdenComparison(currentPrice, activeYear, region);
+
+      const multLabel = c.stressMultiplier >= 1.0
+        ? `${formatMultiplier(c.stressMultiplier)} worse`
+        : `${formatMultiplier(1 / c.stressMultiplier)} better`;
+      const multCls = c.stressMultiplier >= 1.0 ? "su-cw-worse" : "su-cw-better";
+
+      widget.innerHTML =
+        `<div class="su-cw-row1">` +
+          `<span class="su-cw-year">${activeYear}</span>` +
+          `<span class="su-cw-mult ${multCls}">${multLabel}</span>` +
+          `<span class="su-cw-sep">·</span>` +
+          `<span class="su-cw-burden">burden ${formatBurdenPercent(c.currentBurdenRatio)}</span>` +
+          (isEstimated ? `<span class="su-cw-est">⚡ est.</span>` : "") +
+        `</div>` +
+        `<div class="su-cw-row2">` +
+          `<span class="su-cw-equiv-label">equiv</span>` +
+          `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
+          `<span class="su-cw-sep">·</span>` +
+          `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)} → ${formatCZK(c.currentMonthlyPayment)}/měs</span>` +
+        `</div>`;
+    } catch {
+      widget.innerHTML =
+        `<span class="su-cw-year">${activeYear}</span>` +
+        `<span style="font-size:10px;font-style:italic;color:#6b5a44;">no data</span>`;
     }
-
-    const adjPrice = computeAdjustedPrice({
-      currentPrice,
-      houseIndexTarget:    targetData.national.priceIndex,
-      houseIndexCurrent:   CURRENT.national.priceIndex,
-      incomeTarget:        targetData.national.avgWage,
-      incomeCurrent:       CURRENT.national.avgWage,
-      targetMortgageRate:  targetData.mortgageRate,
-      currentMortgageRate: CURRENT.mortgageRate,
-      termMonths: DEFAULTS.TERM_MONTHS,
-    });
-
-    const pct = computePercentChange(adjPrice, currentPrice);
-    // Mortgage at current rates — apples-to-apples monthly cost.
-    const adjMortgage = monthlyMortgagePayment(adjPrice, DEFAULTS.LTV, CURRENT.mortgageRate, DEFAULTS.TERM_MONTHS);
-
-    const sign   = pct < 0 ? "−" : "+";
-    const pctCls = pct < 0 ? "su-cw-down" : "su-cw-up";
-
-    // Single compact strip: [YEAR] adjusted_price  pct_tag  ·  mortgage/měs
-    widget.innerHTML =
-      `<span class="su-cw-year">${activeYear}</span>` +
-      `<span class="su-cw-price">${formatCZK(adjPrice)}</span>` +
-      `<span class="su-cw-pct ${pctCls}">${sign}${Math.abs(pct).toFixed(1)}%</span>` +
-      `<span class="su-cw-sep">·</span>` +
-      `<span class="su-cw-mort">${formatCZK(Math.round(adjMortgage))}/měs</span>`;
 
     priceEl.after(widget);
     comparisonEls.push(widget);
@@ -1038,12 +1016,6 @@ function updateDetailComparison() {
 
   section.style.display = "";
 
-  const targetData = getYearData(activeYear);
-  if (!targetData) {
-    content.innerHTML = `<div class="su-comp-nodata">No data available for ${activeYear}</div>`;
-    return;
-  }
-
   const prices    = scanDetailPage();
   const mainEntry = prices.find((p) => p.source === "Hlavní cena")
                  ?? prices.find((p) => p.source === "Celková cena")
@@ -1055,57 +1027,60 @@ function updateDetailComparison() {
   }
 
   const currentPrice = parseCzechPrice(mainEntry.value);
-  if (currentPrice === null) {
+  if (currentPrice === null || currentPrice === 0) {
     content.innerHTML = `<div class="su-comp-nodata">Could not parse price</div>`;
     return;
   }
 
-  const adjPrice = computeAdjustedPrice({
-    currentPrice,
-    houseIndexTarget:    targetData.national.priceIndex,
-    houseIndexCurrent:   CURRENT.national.priceIndex,
-    incomeTarget:        targetData.national.avgWage,
-    incomeCurrent:       CURRENT.national.avgWage,
-    targetMortgageRate:  targetData.mortgageRate,
-    currentMortgageRate: CURRENT.mortgageRate,
-    termMonths: DEFAULTS.TERM_MONTHS,
-  });
+  const region: CzechRegion = detectedLocation?.region ?? "praha";
+  const isEstimated = !detectedLocation;
 
-  const pricePct       = computePercentChange(adjPrice, currentPrice);
-  // Both mortgage payments use current rate — apples-to-apples monthly cost.
-  const currentMortgage = monthlyMortgagePayment(currentPrice, DEFAULTS.LTV, CURRENT.mortgageRate, DEFAULTS.TERM_MONTHS);
-  const adjMortgage     = monthlyMortgagePayment(adjPrice,     DEFAULTS.LTV, CURRENT.mortgageRate, DEFAULTS.TERM_MONTHS);
-  const mortgagePct     = computePercentChange(adjMortgage, currentMortgage);
+  try {
+    const c = computeBurdenComparison(currentPrice, activeYear, region);
 
-  function pctTag(pct: number): string {
-    const sign = pct < 0 ? "−" : "+";
-    const cls  = pct < 0 ? "su-comp-pct-down" : "su-comp-pct-up";
-    return `<span class="su-comp-pct-tag ${cls}">${sign}${Math.abs(pct).toFixed(1)}%</span>`;
+    const stressLabel = c.stressMultiplier >= 1.0
+      ? `${formatMultiplier(c.stressMultiplier)} more burdensome`
+      : `${formatMultiplier(1 / c.stressMultiplier)} less burdensome`;
+    const stressCls = c.stressMultiplier >= 1.0 ? "su-comp-pct-up" : "su-comp-pct-down";
+
+    const equivPct = ((c.burdenEquivalentPrice - currentPrice) / currentPrice) * 100;
+    const equivSign = equivPct < 0 ? "−" : "+";
+    const equivCls  = equivPct < 0 ? "su-comp-pct-down" : "su-comp-pct-up";
+
+    content.innerHTML = `
+      <div class="su-comp-grid">
+        <div class="su-comp-row">
+          <span class="su-comp-label">Burden now</span>
+          <span class="su-comp-value">${formatBurdenPercent(c.currentBurdenRatio)}</span>
+        </div>
+        <div class="su-comp-row">
+          <span class="su-comp-label">${activeYear}</span>
+          <span class="su-comp-value su-comp-value-adj">${formatBurdenPercent(c.historicalBurdenRatio)}</span>
+          <span class="su-comp-pct-tag ${stressCls}">${stressLabel}</span>
+        </div>
+        <hr class="su-comp-divider" />
+        <div class="su-comp-row">
+          <span class="su-comp-label">Equiv. price</span>
+          <span class="su-comp-value su-comp-value-adj">${formatCZK(c.burdenEquivalentPrice)}</span>
+          <span class="su-comp-pct-tag ${equivCls}">${equivSign}${Math.abs(equivPct).toFixed(1)}%</span>
+        </div>
+        <hr class="su-comp-divider" />
+        <div class="su-comp-row">
+          <span class="su-comp-label">Payment ${activeYear}</span>
+          <span class="su-comp-value">${formatCZK(c.historicalMonthlyPayment)}/měs</span>
+        </div>
+        <div class="su-comp-row">
+          <span class="su-comp-label">Payment now</span>
+          <span class="su-comp-value">${formatCZK(c.currentMonthlyPayment)}/měs</span>
+        </div>
+        ${isEstimated
+          ? `<div style="font-size:10px;color:#6b5a44;text-align:center;margin-top:4px;">⚡ region estimated as Praha</div>`
+          : ""}
+      </div>
+    `;
+  } catch {
+    content.innerHTML = `<div class="su-comp-nodata">No data available for ${activeYear}</div>`;
   }
-
-  content.innerHTML = `
-    <div class="su-comp-grid">
-      <div class="su-comp-row">
-        <span class="su-comp-label">Now</span>
-        <span class="su-comp-value">${formatCZK(currentPrice)}</span>
-      </div>
-      <div class="su-comp-row">
-        <span class="su-comp-label">${activeYear}</span>
-        <span class="su-comp-value su-comp-value-adj">${formatCZK(adjPrice)}</span>
-        ${pctTag(pricePct)}
-      </div>
-      <hr class="su-comp-divider" />
-      <div class="su-comp-row">
-        <span class="su-comp-label">Mortgage now</span>
-        <span class="su-comp-value">${formatCZK(Math.round(currentMortgage))}/měs</span>
-      </div>
-      <div class="su-comp-row">
-        <span class="su-comp-label">${activeYear}</span>
-        <span class="su-comp-value su-comp-value-adj">${formatCZK(Math.round(adjMortgage))}/měs</span>
-        ${pctTag(mortgagePct)}
-      </div>
-    </div>
-  `;
 }
 
 // ─── Ad removal ──────────────────────────────────────────────────────────────
