@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 240px;
+      background: #1c1208;
+      color: #fef3c7;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 13px;
+      padding: 14px;
+    }
+
+    #su-popup-header {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+
+    #su-popup-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fef3c7;
+      letter-spacing: 0.01em;
+    }
+
+    /* Divider */
+    .su-divider {
+      border: none;
+      border-top: 1px solid rgba(249, 115, 22, 0.13);
+      margin: 0;
+    }
+
+    .su-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(249, 115, 22, 0.09);
+    }
+    .su-row:last-of-type { border-bottom: none; }
+
+    .su-label {
+      color: #d4b896;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Toggle switch */
+    .su-toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .su-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .su-slider {
+      position: absolute;
+      inset: 0;
+      background: rgba(249, 115, 22, 0.12);
+      border: 1px solid rgba(249, 115, 22, 0.22);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .su-slider::before {
+      content: "";
+      position: absolute;
+      width: 13px;
+      height: 13px;
+      left: 3px;
+      top: 3px;
+      background: #6b5a44;
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .su-toggle input:checked + .su-slider {
+      background: rgba(249, 115, 22, 0.25);
+      border-color: rgba(249, 115, 22, 0.55);
+    }
+    .su-toggle input:checked + .su-slider::before {
+      transform: translateX(16px);
+      background: #fb923c;
+    }
+
+    .su-btn {
+      width: 100%;
+      padding: 10px 0;
+      border: none;
+      border-radius: 10px;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #launch-btn {
+      margin-top: 13px;
+      background: #f97316;
+      color: #1c1208;
+    }
+    #launch-btn:hover { background: #fb923c; }
+    #launch-btn:active { background: #ea6c10; }
+    #debug-btn {
+      margin-top: 6px;
+      background: rgba(249, 115, 22, 0.1);
+      color: #a38d72;
+      border: 1px solid rgba(249, 115, 22, 0.2);
+    }
+    #debug-btn:hover { background: rgba(249, 115, 22, 0.18); color: #d4b896; }
+
+    #status {
+      margin-top: 9px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #6b5a44;
+      text-align: center;
+      min-height: 14px;
+      letter-spacing: 0.03em;
+    }
+  </style>
+</head>
+<body>
+  <div id="su-popup-header">
+    <span id="su-popup-title">Srealitky Universes</span>
+  </div>
+
+  <hr class="su-divider" />
+
+  <div class="su-row">
+    <span class="su-label">Auto turn on</span>
+    <label class="su-toggle">
+      <input type="checkbox" id="auto-open" />
+      <span class="su-slider"></span>
+    </label>
+  </div>
+
+  <button id="launch-btn" class="su-btn">Launch overlay</button>
+  <button id="debug-btn" class="su-btn">Launch debugger</button>
+  <div id="status"></div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
