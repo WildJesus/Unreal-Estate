@@ -14,7 +14,7 @@ import { getCurrentYearData } from "./universes/data";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -885,14 +885,15 @@ function ensureComparisonCSS() {
   if (comparisonCSSInjected) return;
   comparisonCSSInjected = true;
   const style = document.createElement("style");
-  // Two-line burden widget.
-  // Line 1 (current year): price · burden% · | · payment · ⓘ
-  // Line 2 (comparison year): Δ%+price · Δ%+burden% · | · Δ%+payment
-  // Both lines share the same flex structure so columns align naturally.
+  // 4-line stacked widget — narrow footprint, no horizontal overflow.
+  // Line 1: [NOW-YEAR]  price  (Burden X%)  ⓘ
+  // Line 2: Mortgage:   payment/měs
+  // Line 3: [CMP-YEAR] ↓X%  equiv-price  (Burden Y%)
+  // Line 4: Mortgage:  ↓X%  hist-payment/měs
   style.textContent = `
     .su-comp-widget {
-      display: inline-flex; flex-direction: column; gap: 5px;
-      margin-top: 5px; padding: 7px 13px 7px 10px;
+      display: inline-flex; flex-direction: column; gap: 4px;
+      margin-top: 5px; padding: 7px 12px 7px 10px;
       background: rgba(28,18,8,0.97);
       border-left: 3px solid rgba(249,115,22,0.6);
       border-radius: 0 9px 9px 0;
@@ -901,11 +902,11 @@ function ensureComparisonCSS() {
       box-shadow: 0 2px 10px rgba(0,0,0,0.4);
       transition: opacity 0.2s;
     }
-    .su-cw-line {
-      display: flex; align-items: center; gap: 7px; white-space: nowrap;
+    .su-cw-row {
+      display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
-    .su-cw-cell {
-      display: inline-flex; align-items: center; gap: 3px;
+    .su-cw-divider {
+      border: none; border-top: 1px solid rgba(249,115,22,0.12); margin: 2px 0;
     }
     .su-cw-year {
       font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
@@ -919,7 +920,7 @@ function ensureComparisonCSS() {
       border-color: rgba(249,115,22,0.18);
     }
     .su-cw-price {
-      font-size: 14px; font-weight: 700; color: #fef3c7;
+      font-size: 13px; font-weight: 700; color: #fef3c7;
       font-variant-numeric: tabular-nums;
     }
     .su-cw-price-hist {
@@ -927,10 +928,11 @@ function ensureComparisonCSS() {
       font-variant-numeric: tabular-nums;
     }
     .su-cw-burden {
-      font-size: 11px; font-weight: 600; color: #c4a882;
+      font-size: 10px; font-weight: 600; color: #c4a882;
     }
-    .su-cw-pipe {
-      color: #826650; font-size: 12px; font-weight: 400; margin: 0 1px;
+    .su-cw-mort-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #826650; flex-shrink: 0;
     }
     .su-cw-mort {
       font-size: 12px; font-weight: 700; color: #c4a882;
@@ -944,8 +946,8 @@ function ensureComparisonCSS() {
     .su-cw-dn { color: #4ade80; background: rgba(74,222,128,0.13); }
     .su-cw-up { color: #fb923c; background: rgba(249,115,22,0.13); }
     .su-cw-info {
-      font-size: 12px; color: #826650; cursor: help;
-      margin-left: 2px; flex-shrink: 0;
+      font-size: 11px; color: #826650; cursor: help;
+      margin-left: auto; flex-shrink: 0;
       transition: color 0.15s;
     }
     .su-cw-info:hover { color: #c4a882; }
@@ -992,10 +994,10 @@ function renderListingComparisons() {
 
       const c = computeBurdenComparison(currentPrice, activeYear, region);
 
-      // Deltas: historical vs current (negative = historically cheaper/lower)
-      const priceDeltaPct  = ((c.burdenEquivalentPrice   - currentPrice)           / currentPrice)           * 100;
-      const burdenDeltaPct = ((c.historicalBurdenRatio   - c.currentBurdenRatio)   / c.currentBurdenRatio)   * 100;
-      const payDeltaPct    = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+      // priceDelta and burdenDelta are mathematically identical (equiv price IS
+      // derived from the burden ratio), so we only show one delta.
+      const priceDeltaPct = ((c.burdenEquivalentPrice    - currentPrice)            / currentPrice)            * 100;
+      const payDeltaPct   = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
 
       function delta(pct: number): string {
         const arrow = pct <= 0 ? "↓" : "↑";
@@ -1003,27 +1005,34 @@ function renderListingComparisons() {
         return `<span class="su-cw-delta ${cls}">${arrow}${Math.abs(pct).toFixed(0)}%</span>`;
       }
 
-      const regionLabel = isEstimated
-        ? `Praha (est.) · ${(c.currentRate * 100).toFixed(2)}% → ${(c.historicalRate * 100).toFixed(2)}%`
-        : `${region} · ${(c.currentRate * 100).toFixed(2)}% → ${(c.historicalRate * 100).toFixed(2)}%`;
+      const tooltip = `${isEstimated ? "Praha (est.)" : region} · ${(c.currentRate * 100).toFixed(2)}% now → ${(c.historicalRate * 100).toFixed(2)}% in ${activeYear}`;
 
       widget.innerHTML =
-        // Line 1 — current year situation
-        `<div class="su-cw-line">` +
+        // Line 1: current year — price + burden
+        `<div class="su-cw-row">` +
           `<span class="su-cw-year">${CURRENT.year}</span>` +
           `<span class="su-cw-price">${formatCZK(currentPrice)}</span>` +
           `<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.currentBurdenRatio)})</span>` +
-          `<span class="su-cw-pipe">|</span>` +
-          `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}/měs</span>` +
-          `<span class="su-cw-info" title="${regionLabel}">ⓘ</span>` +
+          `<span class="su-cw-info" title="${tooltip}">ⓘ</span>` +
         `</div>` +
-        // Line 2 — comparison year situation
-        `<div class="su-cw-line">` +
+        // Line 2: current mortgage
+        `<div class="su-cw-row">` +
+          `<span class="su-cw-mort-label">Mortgage</span>` +
+          `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}/měs</span>` +
+        `</div>` +
+        `<hr class="su-cw-divider" />` +
+        // Line 3: comparison year — delta + equiv price + burden
+        `<div class="su-cw-row">` +
           `<span class="su-cw-year su-cw-year-hist">${activeYear}</span>` +
-          `<span class="su-cw-cell">${delta(priceDeltaPct)}<span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span></span>` +
-          `<span class="su-cw-cell">${delta(burdenDeltaPct)}<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.historicalBurdenRatio)})</span></span>` +
-          `<span class="su-cw-pipe">|</span>` +
-          `<span class="su-cw-cell">${delta(payDeltaPct)}<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}/měs</span></span>` +
+          `${delta(priceDeltaPct)}` +
+          `<span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span>` +
+          `<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.historicalBurdenRatio)})</span>` +
+        `</div>` +
+        // Line 4: historical mortgage + delta
+        `<div class="su-cw-row">` +
+          `<span class="su-cw-mort-label">Mortgage</span>` +
+          `${delta(payDeltaPct)}` +
+          `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}/měs</span>` +
         `</div>`;
     } catch {
       widget.innerHTML =
