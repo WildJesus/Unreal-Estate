@@ -14,7 +14,7 @@ import { getCurrentYearData } from "./universes/data";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -293,7 +293,7 @@ function buildDebugOverlay(): HTMLElement {
     }
     #su-dbg-badge {
       font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
-      color: #a38d72; background: rgba(249,115,22,0.08);
+      color: #c4a882; background: rgba(249,115,22,0.08);
       border: 1px solid rgba(249,115,22,0.2); border-radius: 4px;
       padding: 2px 5px; text-transform: uppercase;
     }
@@ -304,7 +304,7 @@ function buildDebugOverlay(): HTMLElement {
       padding: 2px 5px; text-transform: uppercase;
     }
     #su-dbg-close {
-      background: none; border: none; color: #6b5a44; cursor: pointer;
+      background: none; border: none; color: #9a8268; cursor: pointer;
       font-size: 14px; line-height: 1; padding: 2px 0 2px 8px;
       transition: color 0.15s; font-family: inherit;
     }
@@ -331,7 +331,7 @@ function buildDebugOverlay(): HTMLElement {
     }
     .su-dbg-price-source {
       font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
-      text-transform: uppercase; color: #a38d72;
+      text-transform: uppercase; color: #c4a882;
       background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.15);
       border-radius: 4px; padding: 3px 7px; white-space: nowrap; flex-shrink: 0;
     }
@@ -339,25 +339,25 @@ function buildDebugOverlay(): HTMLElement {
       display: flex; justify-content: space-between; align-items: center; gap: 6px;
     }
     .su-dbg-loc-text {
-      font-size: 11px; font-weight: 600; color: #a38d72;
+      font-size: 11px; font-weight: 600; color: #c4a882;
     }
     .su-dbg-loc-src {
       font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #5a4a38; background: rgba(249,115,22,0.05);
+      color: #826650; background: rgba(249,115,22,0.05);
       border: 1px solid rgba(249,115,22,0.1); border-radius: 3px;
       padding: 1px 5px; white-space: nowrap; flex-shrink: 0;
     }
     .su-dbg-loc-none {
-      font-size: 10px; font-style: italic; color: #5a4a38;
+      font-size: 10px; font-style: italic; color: #826650;
     }
     .su-dbg-empty {
-      color: #6b5a44; font-style: italic; font-size: 12px;
+      color: #9a8268; font-style: italic; font-size: 12px;
       text-align: center; margin: 12px 0;
     }
     #su-dbg-footer {
       padding: 8px 14px; border-top: 1px solid rgba(249,115,22,0.1);
       font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
-      color: #6b5a44; text-align: center; flex-shrink: 0;
+      color: #9a8268; text-align: center; flex-shrink: 0;
     }
   `;
   document.head.appendChild(style);
@@ -512,7 +512,7 @@ function buildMainOverlay(): HTMLElement {
     }
     #su-mo-controls { display: flex; gap: 2px; }
     .su-mo-btn {
-      background: none; border: none; color: #9e866e; cursor: pointer;
+      background: none; border: none; color: #b89878; cursor: pointer;
       font-size: 14px; line-height: 1; padding: 2px 5px;
       transition: color 0.15s; font-family: inherit; border-radius: 4px;
     }
@@ -574,7 +574,7 @@ function buildMainOverlay(): HTMLElement {
 
     /* Year selected display */
     #su-year-selected-display {
-      font-size: 11px; font-weight: 600; color: #8a7060;
+      font-size: 11px; font-weight: 600; color: #b09070;
       letter-spacing: 0.02em; min-height: 18px;
     }
     #su-year-selected-display.su-has-year {
@@ -585,7 +585,7 @@ function buildMainOverlay(): HTMLElement {
     }
     .su-year-display-label {
       font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
-      color: #a38d72; text-transform: uppercase; margin-bottom: 2px;
+      color: #c4a882; text-transform: uppercase; margin-bottom: 2px;
     }
     .su-year-display-number {
       font-size: 32px; font-weight: 700; color: #fb923c;
@@ -606,7 +606,7 @@ function buildMainOverlay(): HTMLElement {
       outline: none; transition: border-color 0.15s, background 0.15s;
     }
     #su-year-input::placeholder {
-      color: #5a4a38; font-weight: 400; letter-spacing: 0.02em; font-size: 13px;
+      color: #826650; font-weight: 400; letter-spacing: 0.02em; font-size: 13px;
     }
     #su-year-input:focus {
       border-color: rgba(249,115,22,0.45); background: rgba(249,115,22,0.09);
@@ -623,7 +623,7 @@ function buildMainOverlay(): HTMLElement {
       width: 42px; flex-shrink: 0;
       background: rgba(249,115,22,0.07);
       border: 1px solid rgba(249,115,22,0.18); border-radius: 8px;
-      color: #6b5a44; font-size: 17px; font-weight: 700;
+      color: #9a8268; font-size: 17px; font-weight: 700;
       cursor: not-allowed; transition: all 0.15s; font-family: inherit;
     }
     #su-year-confirm:not([disabled]) {
@@ -637,7 +637,7 @@ function buildMainOverlay(): HTMLElement {
     .su-year-pill {
       flex: 1; padding: 5px 0; text-align: center;
       background: rgba(249,115,22,0.07); border: 1px solid rgba(249,115,22,0.16);
-      border-radius: 6px; color: #a38d72;
+      border-radius: 6px; color: #c4a882;
       font-family: 'Quicksand', system-ui, sans-serif;
       font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: 0.01em;
       transition: background 0.12s, color 0.12s, border-color 0.12s;
@@ -653,7 +653,7 @@ function buildMainOverlay(): HTMLElement {
     #su-city-display { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #d4b896; }
     .su-city-badge {
       font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #a38d72; background: rgba(249,115,22,0.07); border: 1px solid rgba(249,115,22,0.15);
+      color: #c4a882; background: rgba(249,115,22,0.07); border: 1px solid rgba(249,115,22,0.15);
       border-radius: 4px; padding: 2px 6px;
     }
 
@@ -665,7 +665,7 @@ function buildMainOverlay(): HTMLElement {
     }
     .su-comp-label {
       font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-      color: #8a7060; white-space: nowrap; flex-shrink: 0; min-width: 72px;
+      color: #b09070; white-space: nowrap; flex-shrink: 0; min-width: 72px;
     }
     .su-comp-value {
       font-size: 13px; font-weight: 700; color: #fef3c7;
@@ -679,7 +679,7 @@ function buildMainOverlay(): HTMLElement {
     .su-comp-pct-down { color: #4ade80; background: rgba(74,222,128,0.13); }
     .su-comp-pct-up   { color: #fb923c; background: rgba(249,115,22,0.13); }
     .su-comp-divider  { border: none; border-top: 1px solid rgba(249,115,22,0.1); margin: 3px 0; }
-    .su-comp-nodata   { font-size: 11px; font-style: italic; color: #6b5a44; text-align: center; padding: 4px 0; }
+    .su-comp-nodata   { font-size: 11px; font-style: italic; color: #9a8268; text-align: center; padding: 4px 0; }
   `;
   document.head.appendChild(style);
 
@@ -885,47 +885,70 @@ function ensureComparisonCSS() {
   if (comparisonCSSInjected) return;
   comparisonCSSInjected = true;
   const style = document.createElement("style");
-  // Two-row burden widget hooked below each detected price element.
-  // Row 1: year tag + stress multiplier + current burden%.
-  // Row 2: burden-equivalent price + historical → current monthly payments.
+  // Two-line burden widget.
+  // Line 1 (current year): price · burden% · | · payment · ⓘ
+  // Line 2 (comparison year): Δ%+price · Δ%+burden% · | · Δ%+payment
+  // Both lines share the same flex structure so columns align naturally.
   style.textContent = `
     .su-comp-widget {
-      display: flex; flex-direction: column; gap: 4px;
-      margin-top: 4px; padding: 6px 12px 6px 10px;
-      background: rgba(28,18,8,0.96);
-      border-left: 3px solid rgba(249,115,22,0.55);
-      border-radius: 0 8px 8px 0;
+      display: inline-flex; flex-direction: column; gap: 5px;
+      margin-top: 5px; padding: 7px 13px 7px 10px;
+      background: rgba(28,18,8,0.97);
+      border-left: 3px solid rgba(249,115,22,0.6);
+      border-radius: 0 9px 9px 0;
       font-family: 'Quicksand', system-ui, sans-serif;
-      line-height: 1; max-width: max-content;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      line-height: 1;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
       transition: opacity 0.2s;
     }
-    .su-cw-row1, .su-cw-row2 {
-      display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    .su-cw-line {
+      display: flex; align-items: center; gap: 7px; white-space: nowrap;
+    }
+    .su-cw-cell {
+      display: inline-flex; align-items: center; gap: 3px;
     }
     .su-cw-year {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-      color: #fb923c; background: rgba(249,115,22,0.14);
-      padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      color: #fef3c7; background: rgba(249,115,22,0.2);
+      border: 1px solid rgba(249,115,22,0.4);
+      padding: 2px 7px; border-radius: 4px;
+      font-variant-numeric: tabular-nums; flex-shrink: 0;
     }
-    .su-cw-mult { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .su-cw-worse  { color: #fb923c; }
-    .su-cw-better { color: #4ade80; }
-    .su-cw-burden { font-size: 11px; font-weight: 600; color: #a38d72; }
-    .su-cw-sep    { color: #5a4a38; font-size: 11px; }
-    .su-cw-est    { font-size: 9px; color: #6b5a44; letter-spacing: 0.04em; }
-    .su-cw-equiv-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-      color: #6b5a44;
+    .su-cw-year-hist {
+      color: #c4a882; background: rgba(249,115,22,0.08);
+      border-color: rgba(249,115,22,0.18);
     }
     .su-cw-price {
+      font-size: 14px; font-weight: 700; color: #fef3c7;
+      font-variant-numeric: tabular-nums;
+    }
+    .su-cw-price-hist {
       font-size: 13px; font-weight: 700; color: #fb923c;
       font-variant-numeric: tabular-nums;
     }
+    .su-cw-burden {
+      font-size: 11px; font-weight: 600; color: #c4a882;
+    }
+    .su-cw-pipe {
+      color: #826650; font-size: 12px; font-weight: 400; margin: 0 1px;
+    }
     .su-cw-mort {
-      font-size: 11px; font-weight: 600; color: #a38d72;
+      font-size: 12px; font-weight: 700; color: #c4a882;
       font-variant-numeric: tabular-nums;
     }
+    .su-cw-delta {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
+      padding: 1px 4px; border-radius: 3px;
+      font-variant-numeric: tabular-nums; flex-shrink: 0;
+    }
+    .su-cw-dn { color: #4ade80; background: rgba(74,222,128,0.13); }
+    .su-cw-up { color: #fb923c; background: rgba(249,115,22,0.13); }
+    .su-cw-info {
+      font-size: 12px; color: #826650; cursor: help;
+      margin-left: 2px; flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .su-cw-info:hover { color: #c4a882; }
   `;
   document.head.appendChild(style);
 }
@@ -969,29 +992,43 @@ function renderListingComparisons() {
 
       const c = computeBurdenComparison(currentPrice, activeYear, region);
 
-      const multLabel = c.stressMultiplier >= 1.0
-        ? `${formatMultiplier(c.stressMultiplier)} worse`
-        : `${formatMultiplier(1 / c.stressMultiplier)} better`;
-      const multCls = c.stressMultiplier >= 1.0 ? "su-cw-worse" : "su-cw-better";
+      // Deltas: historical vs current (negative = historically cheaper/lower)
+      const priceDeltaPct  = ((c.burdenEquivalentPrice   - currentPrice)           / currentPrice)           * 100;
+      const burdenDeltaPct = ((c.historicalBurdenRatio   - c.currentBurdenRatio)   / c.currentBurdenRatio)   * 100;
+      const payDeltaPct    = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+
+      function delta(pct: number): string {
+        const arrow = pct <= 0 ? "↓" : "↑";
+        const cls   = pct <= 0 ? "su-cw-dn" : "su-cw-up";
+        return `<span class="su-cw-delta ${cls}">${arrow}${Math.abs(pct).toFixed(0)}%</span>`;
+      }
+
+      const regionLabel = isEstimated
+        ? `Praha (est.) · ${(c.currentRate * 100).toFixed(2)}% → ${(c.historicalRate * 100).toFixed(2)}%`
+        : `${region} · ${(c.currentRate * 100).toFixed(2)}% → ${(c.historicalRate * 100).toFixed(2)}%`;
 
       widget.innerHTML =
-        `<div class="su-cw-row1">` +
-          `<span class="su-cw-year">${activeYear}</span>` +
-          `<span class="su-cw-mult ${multCls}">${multLabel}</span>` +
-          `<span class="su-cw-sep">·</span>` +
-          `<span class="su-cw-burden">burden ${formatBurdenPercent(c.currentBurdenRatio)}</span>` +
-          (isEstimated ? `<span class="su-cw-est">⚡ est.</span>` : "") +
+        // Line 1 — current year situation
+        `<div class="su-cw-line">` +
+          `<span class="su-cw-year">${CURRENT.year}</span>` +
+          `<span class="su-cw-price">${formatCZK(currentPrice)}</span>` +
+          `<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.currentBurdenRatio)})</span>` +
+          `<span class="su-cw-pipe">|</span>` +
+          `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}/měs</span>` +
+          `<span class="su-cw-info" title="${regionLabel}">ⓘ</span>` +
         `</div>` +
-        `<div class="su-cw-row2">` +
-          `<span class="su-cw-equiv-label">equiv</span>` +
-          `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
-          `<span class="su-cw-sep">·</span>` +
-          `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)} → ${formatCZK(c.currentMonthlyPayment)}/měs</span>` +
+        // Line 2 — comparison year situation
+        `<div class="su-cw-line">` +
+          `<span class="su-cw-year su-cw-year-hist">${activeYear}</span>` +
+          `<span class="su-cw-cell">${delta(priceDeltaPct)}<span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span></span>` +
+          `<span class="su-cw-cell">${delta(burdenDeltaPct)}<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.historicalBurdenRatio)})</span></span>` +
+          `<span class="su-cw-pipe">|</span>` +
+          `<span class="su-cw-cell">${delta(payDeltaPct)}<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}/měs</span></span>` +
         `</div>`;
     } catch {
       widget.innerHTML =
         `<span class="su-cw-year">${activeYear}</span>` +
-        `<span style="font-size:10px;font-style:italic;color:#6b5a44;">no data</span>`;
+        `<span style="font-size:10px;font-style:italic;color:#9a8268;">no data</span>`;
     }
 
     priceEl.after(widget);
@@ -1066,15 +1103,15 @@ function updateDetailComparison() {
         </div>
         <hr class="su-comp-divider" />
         <div class="su-comp-row">
-          <span class="su-comp-label">Payment ${activeYear}</span>
-          <span class="su-comp-value">${formatCZK(c.historicalMonthlyPayment)}/měs</span>
-        </div>
-        <div class="su-comp-row">
           <span class="su-comp-label">Payment now</span>
           <span class="su-comp-value">${formatCZK(c.currentMonthlyPayment)}/měs</span>
         </div>
+        <div class="su-comp-row">
+          <span class="su-comp-label">Payment ${activeYear}</span>
+          <span class="su-comp-value su-comp-value-adj">${formatCZK(c.historicalMonthlyPayment)}/měs</span>
+        </div>
         ${isEstimated
-          ? `<div style="font-size:10px;color:#6b5a44;text-align:center;margin-top:4px;">⚡ region estimated as Praha</div>`
+          ? `<div style="font-size:10px;color:#9a8268;text-align:center;margin-top:4px;">⚡ region estimated as Praha</div>`
           : ""}
       </div>
     `;
