@@ -5,7 +5,19 @@
       "Bash(gh repo:*)",
       "Bash(git init:*)",
       "Bash(git remote:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(node icons/generate-icons.mjs)",
+      "WebFetch(domain:www.sreality.cz)",
+      "Bash(git:*)",
+      "Bash(npm run:*)",
+      "WebSearch",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:ec.europa.eu)",
+      "WebFetch(domain:www.globalpropertyguide.com)",
+      "WebFetch(domain:csu.gov.cz)",
+      "WebFetch(domain:fred.stlouisfed.org)",
+      "Skill(commit-commands:commit-push-pr)"
     ]
   }
 }
