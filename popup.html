@@ -125,6 +125,30 @@
       min-height: 14px;
       letter-spacing: 0.03em;
     }
+
+    /* Language switcher */
+    .su-lang-pills {
+      display: flex;
+      gap: 4px;
+    }
+    .su-lang-btn {
+      background: rgba(249, 115, 22, 0.08);
+      border: 1px solid rgba(249, 115, 22, 0.18);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      padding: 3px 7px;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .su-lang-btn:hover {
+      background: rgba(249, 115, 22, 0.18);
+    }
+    .su-lang-btn.active {
+      background: rgba(249, 115, 22, 0.22);
+      border-color: rgba(249, 115, 22, 0.6);
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+    }
   </style>
 </head>
 <body>
@@ -135,15 +159,23 @@
   <hr class="su-divider" />
 
   <div class="su-row">
-    <span class="su-label">Auto turn on</span>
+    <span class="su-label" id="label-auto-open">Automaticky zapnout</span>
     <label class="su-toggle">
       <input type="checkbox" id="auto-open" />
       <span class="su-slider"></span>
     </label>
   </div>
 
-  <button id="launch-btn" class="su-btn">Launch overlay</button>
-  <button id="debug-btn" class="su-btn">Launch debugger</button>
+  <div class="su-row">
+    <span class="su-label" id="label-lang">Jazyk</span>
+    <div class="su-lang-pills">
+      <button class="su-lang-btn active" id="lang-cs" data-lang="cs">🇨🇿</button>
+      <button class="su-lang-btn"        id="lang-en" data-lang="en">🇬🇧</button>
+    </div>
+  </div>
+
+  <button id="launch-btn" class="su-btn">Spustit overlay</button>
+  <button id="debug-btn" class="su-btn">Spustit debugger</button>
   <div id="status"></div>
 
   <script src="popup.js" type="module"></script>

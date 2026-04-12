@@ -1,20 +1,52 @@
 // Content script — injected into every sreality.cz page.
 
 import {
+  type BurdenComparison,
   computeBurdenComparison,
   formatCZK,
   formatBurdenPercent,
   formatMultiplier,
   parseCzechPrice,
 } from "./universes/calc";
-import { getCurrentYearData } from "./universes/data";
+import { getCurrentYearData, getRegionalData, DATA_VERSION } from "./universes/data";
+import { t, setLang, type Lang } from "./i18n";
 
 // Snapshot of current-year economic data. Evaluated once at module load — the
 // page doesn't live long enough for this to become stale.
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.3.2";
+const VERSION = "0.4.0";
+
+// Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
+const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
+  'praha':            'Praha',
+  'stredocesky':      'Středočeský kraj',
+  'jihocesky':        'Jihočeský kraj',
+  'plzensky':         'Plzeňský kraj',
+  'karlovarsky':      'Karlovarský kraj',
+  'ustecky':          'Ústecký kraj',
+  'liberecky':        'Liberecký kraj',
+  'kralovehradecky':  'Královéhradecký kraj',
+  'pardubicky':       'Pardubický kraj',
+  'vysocina':         'Kraj Vysočina',
+  'jihomoravsky':     'Jihomoravský kraj',
+  'olomoucky':        'Olomoucký kraj',
+  'zlinsky':          'Zlínský kraj',
+  'moravskoslezsky':  'Moravskoslezský kraj',
+};
+
+// Context object stored per ⓘ button — carries everything needed to render
+// the full Czech walkthrough popup without re-computing anything.
+interface PopupCtx {
+  c:           BurdenComparison;
+  region:      CzechRegion;
+  isEstimated: boolean;
+  nowIndex:    number;   // regional price index for current year
+  histIndex:   number;   // regional price index for comparison year
+  nowWage:     number;   // regional avg gross monthly wage, current year
+  histWage:    number;   // regional avg gross monthly wage, comparison year
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -242,9 +274,9 @@ function removeHighlights() {
 const SU_BASE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
   .su-hl {
-    background-color: rgba(251, 146, 60, 0.22) !important;
+    background-color: rgba(220, 38, 38, 0.10) !important;
     border-radius: 3px !important;
-    outline: 1.5px solid rgba(251, 146, 60, 0.5) !important;
+    outline: 1.5px solid rgba(220, 38, 38, 0.40) !important;
     outline-offset: 2px !important;
   }
 `;
@@ -261,17 +293,16 @@ function buildDebugOverlay(): HTMLElement {
       right: 20px;
       width: 300px;
       max-height: 440px;
-      background: rgba(28, 18, 8, 0.96);
-      border: 1px solid rgba(249, 115, 22, 0.22);
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.12);
       border-radius: 16px;
-      color: #fef3c7;
+      color: #111111;
       font-family: 'Quicksand', system-ui, sans-serif;
-      font-size: 13px;
+      font-size: 14px;
       z-index: 2147483647;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(249,115,22,0.07);
-      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
       overflow: hidden;
     }
     #su-debug-overlay.su-hidden { display: none !important; }
@@ -281,83 +312,83 @@ function buildDebugOverlay(): HTMLElement {
       justify-content: space-between;
       align-items: center;
       padding: 11px 14px 10px;
-      border-bottom: 1px solid rgba(249,115,22,0.13);
+      border-bottom: 1px solid rgba(0,0,0,0.08);
       flex-shrink: 0;
     }
     #su-dbg-title-wrap { display: flex; align-items: center; gap: 7px; }
     #su-dbg-name {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
-      color: #fef3c7;
+      color: #111111;
       letter-spacing: 0.01em;
     }
     #su-dbg-badge {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
-      color: #c4a882; background: rgba(249,115,22,0.08);
-      border: 1px solid rgba(249,115,22,0.2); border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      color: #666666; background: #f0f0f0;
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 4px;
       padding: 2px 5px; text-transform: uppercase;
     }
     #su-dbg-version {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
-      color: #fb923c; background: rgba(249,115,22,0.12);
-      border: 1px solid rgba(249,115,22,0.35); border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      color: #dc2626; background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(220,38,38,0.25); border-radius: 4px;
       padding: 2px 5px; text-transform: uppercase;
     }
     #su-dbg-close {
-      background: none; border: none; color: #9a8268; cursor: pointer;
-      font-size: 14px; line-height: 1; padding: 2px 0 2px 8px;
+      background: none; border: none; color: #aaaaaa; cursor: pointer;
+      font-size: 15px; line-height: 1; padding: 2px 0 2px 8px;
       transition: color 0.15s; font-family: inherit;
     }
-    #su-dbg-close:hover { color: #fef3c7; }
+    #su-dbg-close:hover { color: #111111; }
 
     #su-dbg-price-list {
       overflow-y: auto; padding: 6px 14px; flex: 1;
     }
     #su-dbg-price-list::-webkit-scrollbar { width: 3px; }
     #su-dbg-price-list::-webkit-scrollbar-track { background: transparent; }
-    #su-dbg-price-list::-webkit-scrollbar-thumb { background: rgba(249,115,22,0.25); border-radius: 2px; }
+    #su-dbg-price-list::-webkit-scrollbar-thumb { background: rgba(220,38,38,0.25); border-radius: 2px; }
 
     .su-dbg-price-item {
       display: flex; flex-direction: column; gap: 4px;
-      padding: 8px 0; border-bottom: 1px solid rgba(249,115,22,0.09);
+      padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.07);
     }
     .su-dbg-price-item:last-child { border-bottom: none; }
     .su-dbg-pi-top {
       display: flex; justify-content: space-between; align-items: center; gap: 10px;
     }
     .su-dbg-price-value {
-      color: #fef3c7; font-size: 15px; font-weight: 700;
+      color: #111111; font-size: 16px; font-weight: 700;
       font-variant-numeric: tabular-nums; white-space: nowrap;
     }
     .su-dbg-price-source {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
-      text-transform: uppercase; color: #c4a882;
-      background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.15);
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: #666666;
+      background: #f0f0f0; border: 1px solid rgba(0,0,0,0.10);
       border-radius: 4px; padding: 3px 7px; white-space: nowrap; flex-shrink: 0;
     }
     .su-dbg-pi-loc {
       display: flex; justify-content: space-between; align-items: center; gap: 6px;
     }
     .su-dbg-loc-text {
-      font-size: 11px; font-weight: 600; color: #c4a882;
+      font-size: 12px; font-weight: 600; color: #444444;
     }
     .su-dbg-loc-src {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #826650; background: rgba(249,115,22,0.05);
-      border: 1px solid rgba(249,115,22,0.1); border-radius: 3px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #888888; background: #f5f5f5;
+      border: 1px solid rgba(0,0,0,0.08); border-radius: 3px;
       padding: 1px 5px; white-space: nowrap; flex-shrink: 0;
     }
     .su-dbg-loc-none {
-      font-size: 10px; font-style: italic; color: #826650;
+      font-size: 11px; font-style: italic; color: #aaaaaa;
     }
     .su-dbg-empty {
-      color: #9a8268; font-style: italic; font-size: 12px;
+      color: #aaaaaa; font-style: italic; font-size: 13px;
       text-align: center; margin: 12px 0;
     }
     #su-dbg-footer {
-      padding: 8px 14px; border-top: 1px solid rgba(249,115,22,0.1);
-      font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
-      color: #9a8268; text-align: center; flex-shrink: 0;
+      padding: 8px 14px; border-top: 1px solid rgba(0,0,0,0.07);
+      font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+      color: #888888; text-align: center; flex-shrink: 0;
     }
   `;
   document.head.appendChild(style);
@@ -367,16 +398,16 @@ function buildDebugOverlay(): HTMLElement {
   el.innerHTML = `
     <div id="su-dbg-header">
       <div id="su-dbg-title-wrap">
-        <span id="su-dbg-name">Price Debugger</span>
-        <span id="su-dbg-badge">debug</span>
+        <span id="su-dbg-name">${t('dbgTitle')}</span>
+        <span id="su-dbg-badge">${t('dbgBadge')}</span>
         <span id="su-dbg-version">v${VERSION}</span>
       </div>
-      <button id="su-dbg-close" title="Close">✕</button>
+      <button id="su-dbg-close" title="${t('dbgClose')}">✕</button>
     </div>
     <div id="su-dbg-price-list">
-      <p class="su-dbg-empty">Scanning…</p>
+      <p class="su-dbg-empty">${t('dbgScanning')}</p>
     </div>
-    <div id="su-dbg-footer">0 prices found</div>
+    <div id="su-dbg-footer">${t('dbgNoPricesFound')}</div>
   `;
 
   el.querySelector("#su-dbg-close")!.addEventListener("click", hideDebugOverlay);
@@ -393,8 +424,8 @@ function renderDebugFull() {
     // source labels per price entry (Hlavní cena, Celková cena, etc.).
     const prices = scanPrices();
     if (prices.length === 0) {
-      list.innerHTML = `<p class="su-dbg-empty">No prices found on this page.</p>`;
-      footer.textContent = "0 prices";
+      list.innerHTML = `<p class="su-dbg-empty">${t('dbgNoPricesOnPage')}</p>`;
+      footer.textContent = t('dbgZeroPrices');
       return;
     }
     list.innerHTML = prices
@@ -408,16 +439,16 @@ function renderDebugFull() {
       .join("");
     const loc = detectedLocation;
     footer.textContent = loc
-      ? `${prices.length} price${prices.length === 1 ? "" : "s"} · ${loc.region} [${loc.source}]`
-      : `${prices.length} price${prices.length === 1 ? "" : "s"} · location unknown`;
+      ? t('dbgFooterWithLoc', prices.length, loc.region, loc.source)
+      : t('dbgFooterNoLoc', prices.length);
     return;
   }
 
   // Listing page: per-card location from each highlighted price element.
   // highlightedEls is populated by applyHighlights() before this runs.
   if (highlightedEls.length === 0) {
-    list.innerHTML = `<p class="su-dbg-empty">No prices found on this page.</p>`;
-    footer.textContent = "0 prices";
+    list.innerHTML = `<p class="su-dbg-empty">${t('dbgNoPricesOnPage')}</p>`;
+    footer.textContent = t('dbgZeroPrices');
     return;
   }
 
@@ -433,7 +464,7 @@ function renderDebugFull() {
              <span class="su-dbg-loc-text">${loc.city ?? loc.region}${loc.district ? " · " + loc.district : ""}</span>
              <span class="su-dbg-loc-src">${loc.source}</span>
            </div>`
-        : `<div class="su-dbg-pi-loc"><span class="su-dbg-loc-none">location unknown</span></div>`;
+        : `<div class="su-dbg-pi-loc"><span class="su-dbg-loc-none">${t('dbgLocationUnknown')}</span></div>`;
 
       return `
         <div class="su-dbg-price-item">
@@ -445,7 +476,7 @@ function renderDebugFull() {
     })
     .join("");
 
-  footer.textContent = `${highlightedEls.length} price${highlightedEls.length === 1 ? "" : "s"} · ${located}/${highlightedEls.length} located`;
+  footer.textContent = t('dbgFooterLocated', highlightedEls.length, located);
 }
 
 function showDebugOverlay() {
@@ -480,17 +511,16 @@ function buildMainOverlay(): HTMLElement {
       bottom: 20px;
       left: 20px;
       width: 320px;
-      background: rgba(28, 18, 8, 0.96);
-      border: 1px solid rgba(249, 115, 22, 0.22);
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.12);
       border-radius: 16px;
-      color: #fef3c7;
+      color: #111111;
       font-family: 'Quicksand', system-ui, sans-serif;
-      font-size: 13px;
+      font-size: 14px;
       z-index: 2147483647;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(249,115,22,0.07);
-      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
       overflow: hidden;
     }
     #su-main-overlay.su-mo-hidden { display: none !important; }
@@ -499,24 +529,24 @@ function buildMainOverlay(): HTMLElement {
     #su-mo-header {
       display: flex; justify-content: space-between; align-items: center;
       padding: 11px 14px 10px;
-      border-bottom: 1px solid rgba(249,115,22,0.13);
+      border-bottom: 1px solid rgba(0,0,0,0.08);
       flex-shrink: 0;
     }
     #su-mo-title-wrap { display: flex; align-items: center; gap: 7px; }
-    #su-mo-name { font-size: 12px; font-weight: 700; color: #fef3c7; letter-spacing: 0.01em; }
+    #su-mo-name { font-size: 13px; font-weight: 700; color: #111111; letter-spacing: 0.01em; }
     #su-mo-version {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
-      color: #fb923c; background: rgba(249,115,22,0.12);
-      border: 1px solid rgba(249,115,22,0.35); border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      color: #dc2626; background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(220,38,38,0.25); border-radius: 4px;
       padding: 2px 5px; text-transform: uppercase;
     }
     #su-mo-controls { display: flex; gap: 2px; }
     .su-mo-btn {
-      background: none; border: none; color: #b89878; cursor: pointer;
-      font-size: 14px; line-height: 1; padding: 2px 5px;
+      background: none; border: none; color: #aaaaaa; cursor: pointer;
+      font-size: 15px; line-height: 1; padding: 2px 5px;
       transition: color 0.15s; font-family: inherit; border-radius: 4px;
     }
-    .su-mo-btn:hover { color: #fef3c7; }
+    .su-mo-btn:hover { color: #111111; }
 
     /* ── Minimized bar ── */
     #su-mo-mini {
@@ -527,9 +557,9 @@ function buildMainOverlay(): HTMLElement {
     #su-main-overlay.su-minimized #su-mo-mini   { display: flex; }
     #su-main-overlay.su-minimized #su-mo-body   { display: none; }
 
-    #su-mo-mini-label { font-size: 12px; font-weight: 700; color: #fef3c7; white-space: nowrap; }
+    #su-mo-mini-label { font-size: 13px; font-weight: 700; color: #111111; white-space: nowrap; }
     #su-mo-mini-filters {
-      font-size: 10px; font-weight: 700; color: #fb923c;
+      font-size: 11px; font-weight: 700; color: #dc2626;
       flex: 1; padding: 0 8px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
@@ -540,30 +570,30 @@ function buildMainOverlay(): HTMLElement {
 
     .su-mo-section {
       padding: 10px 0;
-      border-bottom: 1px solid rgba(249,115,22,0.1);
+      border-bottom: 1px solid rgba(0,0,0,0.07);
     }
     .su-mo-section:last-child { border-bottom: none; padding-bottom: 2px; }
 
     .su-mo-section-head { display: flex; align-items: center; gap: 8px; }
     .su-mo-section-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-      color: #eacc98; text-transform: uppercase; cursor: default;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+      color: #333333; text-transform: uppercase; cursor: default;
     }
 
     /* Section checkbox */
     .su-mo-chk {
       appearance: none; -webkit-appearance: none;
       width: 14px; height: 14px;
-      border: 1.5px solid rgba(249,115,22,0.35); border-radius: 3px;
-      background: rgba(249,115,22,0.06); cursor: pointer;
+      border: 1.5px solid rgba(0,0,0,0.22); border-radius: 3px;
+      background: #ffffff; cursor: pointer;
       flex-shrink: 0; position: relative;
       transition: background 0.15s, border-color 0.15s; margin: 0;
     }
-    .su-mo-chk:checked { background: #f97316; border-color: #f97316; }
+    .su-mo-chk:checked { background: #dc2626; border-color: #dc2626; }
     .su-mo-chk:checked::after {
       content: ''; position: absolute;
       left: 3px; top: 0px; width: 5px; height: 8px;
-      border: 2px solid #1c1208; border-top: none; border-left: none;
+      border: 2px solid #ffffff; border-top: none; border-left: none;
       transform: rotate(45deg);
     }
 
@@ -574,21 +604,21 @@ function buildMainOverlay(): HTMLElement {
 
     /* Year selected display */
     #su-year-selected-display {
-      font-size: 11px; font-weight: 600; color: #b09070;
+      font-size: 12px; font-weight: 600; color: #888888;
       letter-spacing: 0.02em; min-height: 18px;
     }
     #su-year-selected-display.su-has-year {
       display: flex; flex-direction: column; align-items: center;
-      background: rgba(249, 115, 22, 0.13);
-      border: 1px solid rgba(249, 115, 22, 0.38);
+      background: rgba(220,38,38,0.06);
+      border: 1px solid rgba(220,38,38,0.22);
       border-radius: 10px; padding: 8px 0 10px; min-height: auto;
     }
     .su-year-display-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
-      color: #c4a882; text-transform: uppercase; margin-bottom: 2px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      color: #888888; text-transform: uppercase; margin-bottom: 2px;
     }
     .su-year-display-number {
-      font-size: 32px; font-weight: 700; color: #fb923c;
+      font-size: 35px; font-weight: 700; color: #dc2626;
       font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0.04em;
     }
 
@@ -598,62 +628,62 @@ function buildMainOverlay(): HTMLElement {
     /* Year input */
     #su-year-input {
       flex: 1; min-width: 0; padding: 8px 11px;
-      background: rgba(249,115,22,0.06);
-      border: 1px solid rgba(249,115,22,0.2); border-radius: 8px;
-      color: #fef3c7; font-family: 'Quicksand', system-ui, sans-serif;
-      font-size: 15px; font-weight: 700;
+      background: #f5f5f5;
+      border: 1px solid rgba(0,0,0,0.15); border-radius: 8px;
+      color: #111111; font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 16px; font-weight: 700;
       font-variant-numeric: tabular-nums; letter-spacing: 0.1em;
       outline: none; transition: border-color 0.15s, background 0.15s;
     }
     #su-year-input::placeholder {
-      color: #826650; font-weight: 400; letter-spacing: 0.02em; font-size: 13px;
+      color: #aaaaaa; font-weight: 400; letter-spacing: 0.02em; font-size: 14px;
     }
     #su-year-input:focus {
-      border-color: rgba(249,115,22,0.45); background: rgba(249,115,22,0.09);
+      border-color: rgba(0,0,0,0.35); background: #ffffff;
     }
     #su-year-input.su-valid {
-      border-color: #f97316; background: rgba(249,115,22,0.12);
+      border-color: #dc2626; background: rgba(220,38,38,0.04);
     }
     #su-year-input.su-invalid {
-      border-color: rgba(220,80,60,0.5); background: rgba(220,80,60,0.06);
+      border-color: rgba(220,38,38,0.5); background: rgba(220,38,38,0.04);
     }
 
     /* Confirm button */
     #su-year-confirm {
       width: 42px; flex-shrink: 0;
-      background: rgba(249,115,22,0.07);
-      border: 1px solid rgba(249,115,22,0.18); border-radius: 8px;
-      color: #9a8268; font-size: 17px; font-weight: 700;
+      background: #f0f0f0;
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 8px;
+      color: #aaaaaa; font-size: 19px; font-weight: 700;
       cursor: not-allowed; transition: all 0.15s; font-family: inherit;
     }
     #su-year-confirm:not([disabled]) {
-      background: rgba(249,115,22,0.18); border-color: rgba(249,115,22,0.5);
-      color: #fb923c; cursor: pointer;
+      background: rgba(220,38,38,0.08); border-color: rgba(220,38,38,0.35);
+      color: #dc2626; cursor: pointer;
     }
-    #su-year-confirm:not([disabled]):hover { background: #f97316; color: #1c1208; }
+    #su-year-confirm:not([disabled]):hover { background: #dc2626; color: #ffffff; }
 
     /* Year pills */
     #su-year-pills { display: flex; gap: 5px; }
     .su-year-pill {
       flex: 1; padding: 5px 0; text-align: center;
-      background: rgba(249,115,22,0.07); border: 1px solid rgba(249,115,22,0.16);
-      border-radius: 6px; color: #c4a882;
+      background: #f5f5f5; border: 1px solid rgba(0,0,0,0.10);
+      border-radius: 6px; color: #666666;
       font-family: 'Quicksand', system-ui, sans-serif;
-      font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: 0.01em;
+      font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.01em;
       transition: background 0.12s, color 0.12s, border-color 0.12s;
     }
     .su-year-pill:hover {
-      background: rgba(249,115,22,0.16); border-color: rgba(249,115,22,0.38); color: #fef3c7;
+      background: #eeeeee; border-color: rgba(0,0,0,0.20); color: #111111;
     }
     .su-year-pill.su-active {
-      background: rgba(249,115,22,0.22); border-color: #f97316; color: #fb923c;
+      background: rgba(220,38,38,0.08); border-color: #dc2626; color: #dc2626;
     }
 
     /* City section */
-    #su-city-display { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #d4b896; }
+    #su-city-display { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #333333; }
     .su-city-badge {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #c4a882; background: rgba(249,115,22,0.07); border: 1px solid rgba(249,115,22,0.15);
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #666666; background: #f0f0f0; border: 1px solid rgba(0,0,0,0.10);
       border-radius: 4px; padding: 2px 6px;
     }
 
@@ -664,22 +694,22 @@ function buildMainOverlay(): HTMLElement {
       display: flex; align-items: baseline; gap: 6px;
     }
     .su-comp-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-      color: #b09070; white-space: nowrap; flex-shrink: 0; min-width: 72px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: #888888; white-space: nowrap; flex-shrink: 0; min-width: 72px;
     }
     .su-comp-value {
-      font-size: 13px; font-weight: 700; color: #fef3c7;
+      font-size: 14px; font-weight: 700; color: #111111;
       font-variant-numeric: tabular-nums; flex: 1; text-align: right;
     }
-    .su-comp-value-adj { color: #fb923c; }
+    .su-comp-value-adj { color: #dc2626; }
     .su-comp-pct-tag {
-      font-size: 10px; font-weight: 700; padding: 2px 5px;
+      font-size: 11px; font-weight: 700; padding: 2px 5px;
       border-radius: 4px; flex-shrink: 0; white-space: nowrap;
     }
-    .su-comp-pct-down { color: #4ade80; background: rgba(74,222,128,0.13); }
-    .su-comp-pct-up   { color: #fb923c; background: rgba(249,115,22,0.13); }
-    .su-comp-divider  { border: none; border-top: 1px solid rgba(249,115,22,0.1); margin: 3px 0; }
-    .su-comp-nodata   { font-size: 11px; font-style: italic; color: #9a8268; text-align: center; padding: 4px 0; }
+    .su-comp-pct-down { color: #16a34a; background: rgba(22,163,74,0.10); }
+    .su-comp-pct-up   { color: #dc2626; background: rgba(220,38,38,0.10); }
+    .su-comp-divider  { border: none; border-top: 1px solid rgba(0,0,0,0.07); margin: 3px 0; }
+    .su-comp-nodata   { font-size: 12px; font-style: italic; color: #aaaaaa; text-align: center; padding: 4px 0; }
   `;
   document.head.appendChild(style);
 
@@ -692,8 +722,8 @@ function buildMainOverlay(): HTMLElement {
         <span id="su-mo-version">v${VERSION}</span>
       </div>
       <div id="su-mo-controls">
-        <button class="su-mo-btn" id="su-mo-minimize" title="Minimize">─</button>
-        <button class="su-mo-btn" id="su-mo-close" title="Close">✕</button>
+        <button class="su-mo-btn" id="su-mo-minimize" title="${t('moMinimize')}">─</button>
+        <button class="su-mo-btn" id="su-mo-close" title="${t('moClose')}">✕</button>
       </div>
     </div>
 
@@ -701,8 +731,8 @@ function buildMainOverlay(): HTMLElement {
       <span id="su-mo-mini-label">Srealitky Universes</span>
       <span id="su-mo-mini-filters"></span>
       <div id="su-mo-mini-controls">
-        <button class="su-mo-btn" id="su-mo-unminimize" title="Expand">□</button>
-        <button class="su-mo-btn" id="su-mo-mini-close" title="Close">✕</button>
+        <button class="su-mo-btn" id="su-mo-unminimize" title="${t('moExpand')}">□</button>
+        <button class="su-mo-btn" id="su-mo-mini-close" title="${t('moClose')}">✕</button>
       </div>
     </div>
 
@@ -710,17 +740,17 @@ function buildMainOverlay(): HTMLElement {
       <div class="su-mo-section" id="su-mo-year-section">
         <div class="su-mo-section-head">
           <input type="checkbox" class="su-mo-chk" id="su-mo-year-chk" checked />
-          <span class="su-mo-section-title">Compare to a different year</span>
+          <span class="su-mo-section-title">${t('moYearSection')}</span>
         </div>
         <div class="su-mo-section-content">
-          <div id="su-year-selected-display">No year selected</div>
+          <div id="su-year-selected-display">${t('moNoYearSelected')}</div>
           <div id="su-year-input-row">
             <input
               type="text" id="su-year-input" maxlength="4"
-              placeholder="type a year, e.g. 2013"
+              placeholder="${t('moYearPlaceholder')}"
               inputmode="numeric" autocomplete="off"
             />
-            <button id="su-year-confirm" disabled title="Confirm year (Enter)">✓</button>
+            <button id="su-year-confirm" disabled title="${t('moConfirmYear')}">✓</button>
           </div>
           <div id="su-year-pills">
             <button class="su-year-pill" data-year="2000">2000</button>
@@ -735,18 +765,18 @@ function buildMainOverlay(): HTMLElement {
       <div class="su-mo-section su-disabled" id="su-mo-city-section">
         <div class="su-mo-section-head">
           <input type="checkbox" class="su-mo-chk" id="su-mo-city-chk" />
-          <span class="su-mo-section-title">Compare to a different city</span>
+          <span class="su-mo-section-title">${t('moCitySection')}</span>
         </div>
         <div class="su-mo-section-content">
           <div id="su-city-display">
-            Praha <span class="su-city-badge">selected</span>
+            Praha <span class="su-city-badge">${t('moCitySelected')}</span>
           </div>
         </div>
       </div>
 
       <div class="su-mo-section" id="su-mo-comparison" style="display:none;">
         <div class="su-mo-section-head">
-          <span class="su-mo-section-title">Comparison</span>
+          <span class="su-mo-section-title">${t('moComparison')}</span>
         </div>
         <div id="su-mo-comp-content" class="su-mo-section-content"></div>
       </div>
@@ -785,12 +815,12 @@ function buildMainOverlay(): HTMLElement {
     });
     if (year !== null) {
       yearDisplay.innerHTML = `
-        <span class="su-year-display-label">Selected year</span>
+        <span class="su-year-display-label">${t('moSelectedYear')}</span>
         <span class="su-year-display-number">${year}</span>
       `;
       yearDisplay.classList.add("su-has-year");
     } else {
-      yearDisplay.textContent = "No year selected";
+      yearDisplay.textContent = t('moNoYearSelected');
       yearDisplay.classList.remove("su-has-year");
     }
     updateMiniFilters();
@@ -859,6 +889,22 @@ function buildMainOverlay(): HTMLElement {
   el.querySelector("#su-mo-close")!.addEventListener("click", hideMainOverlay);
   el.querySelector("#su-mo-mini-close")!.addEventListener("click", hideMainOverlay);
 
+  // Restore selected year if one was active before a rebuild (e.g. language switch).
+  if (activeYear !== null) {
+    yearInput.value = String(activeYear);
+    yearInput.classList.add("su-valid");
+    confirmBtn.disabled = false;
+    yearDisplay.innerHTML = `
+      <span class="su-year-display-label">${t('moSelectedYear')}</span>
+      <span class="su-year-display-number">${activeYear}</span>
+    `;
+    yearDisplay.classList.add("su-has-year");
+    el.querySelectorAll<HTMLElement>(".su-year-pill").forEach((pill) => {
+      pill.classList.toggle("su-active", parseInt(pill.dataset.year ?? "") === activeYear);
+    });
+    updateMiniFilters();
+  }
+
   return el;
 }
 
@@ -894,65 +940,445 @@ function ensureComparisonCSS() {
     .su-comp-widget {
       display: inline-flex; flex-direction: column; gap: 4px;
       margin-top: 5px; padding: 7px 12px 7px 10px;
-      background: rgba(28,18,8,0.97);
-      border-left: 3px solid rgba(249,115,22,0.6);
+      background: #ffffff;
+      border-left: 3px solid #dc2626;
       border-radius: 0 9px 9px 0;
       font-family: 'Quicksand', system-ui, sans-serif;
       line-height: 1;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.10);
       transition: opacity 0.2s;
     }
     .su-cw-row {
       display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     .su-cw-divider {
-      border: none; border-top: 1px solid rgba(249,115,22,0.12); margin: 2px 0;
+      border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 2px 0;
     }
     .su-cw-year {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-      color: #fef3c7; background: rgba(249,115,22,0.2);
-      border: 1px solid rgba(249,115,22,0.4);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+      color: #ffffff; background: #dc2626;
+      border: 1px solid #dc2626;
       padding: 2px 7px; border-radius: 4px;
       font-variant-numeric: tabular-nums; flex-shrink: 0;
     }
     .su-cw-year-hist {
-      color: #c4a882; background: rgba(249,115,22,0.08);
-      border-color: rgba(249,115,22,0.18);
+      color: #dc2626; background: rgba(220,38,38,0.08);
+      border-color: rgba(220,38,38,0.30);
     }
     .su-cw-price {
-      font-size: 13px; font-weight: 700; color: #fef3c7;
+      font-size: 14px; font-weight: 700; color: #111111;
       font-variant-numeric: tabular-nums;
     }
     .su-cw-price-hist {
-      font-size: 13px; font-weight: 700; color: #fb923c;
+      font-size: 14px; font-weight: 700; color: #dc2626;
       font-variant-numeric: tabular-nums;
     }
     .su-cw-burden {
-      font-size: 10px; font-weight: 600; color: #c4a882;
+      font-size: 11px; font-weight: 600; color: #777777;
     }
     .su-cw-mort-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #826650; flex-shrink: 0;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #aaaaaa; flex-shrink: 0;
     }
     .su-cw-mort {
-      font-size: 12px; font-weight: 700; color: #c4a882;
+      font-size: 13px; font-weight: 700; color: #555555;
       font-variant-numeric: tabular-nums;
     }
     .su-cw-delta {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
       padding: 1px 4px; border-radius: 3px;
       font-variant-numeric: tabular-nums; flex-shrink: 0;
     }
-    .su-cw-dn { color: #4ade80; background: rgba(74,222,128,0.13); }
-    .su-cw-up { color: #fb923c; background: rgba(249,115,22,0.13); }
+    .su-cw-dn { color: #16a34a; background: rgba(22,163,74,0.10); }
+    .su-cw-up { color: #dc2626; background: rgba(220,38,38,0.10); }
     .su-cw-info {
-      font-size: 11px; color: #826650; cursor: help;
+      color: #bbbbbb; cursor: pointer;
       margin-left: auto; flex-shrink: 0;
+      background: none; border: none; padding: 0; line-height: 0;
+      display: inline-flex; align-items: center; justify-content: center;
       transition: color 0.15s;
     }
-    .su-cw-info:hover { color: #c4a882; }
+    .su-cw-info:hover { color: #555555; }
+
+    /* ── Info popup ── */
+    #su-info-popup {
+      position: fixed;
+      width: 550px;
+      max-width: 96vw;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 10px;
+      color: #111111;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.6;
+      z-index: 2147483647;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
+      transform-origin: top right;
+      animation: su-popup-in 0.15s ease-out;
+    }
+    #su-info-popup.su-popup-hidden { display: none; }
+    @keyframes su-popup-in {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    #su-popup-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px 9px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      cursor: grab; user-select: none;
+    }
+    #su-popup-header:active { cursor: grabbing; }
+    #su-popup-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: #888888;
+    }
+    #su-popup-close {
+      background: none; border: none; color: #aaaaaa; cursor: pointer;
+      font-size: 15px; line-height: 1; padding: 0 0 0 10px;
+      transition: color 0.15s; font-family: inherit;
+    }
+    #su-popup-close:hover { color: #111111; }
+    #su-popup-body { padding: 12px 14px; }
+    .su-pp-listing {
+      font-size: 15px; font-weight: 700; color: #111111; margin-bottom: 12px;
+      display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px;
+    }
+    .su-pp-listing-hist {
+      font-size: 14px; font-weight: 700; color: #444444;
+    }
+    .su-pp-listing-region { font-size: 13px; font-weight: 600; color: #777777; }
+    .su-pp-step { margin-bottom: 13px; }
+    .su-pp-step-head {
+      font-size: 14px; font-weight: 700; color: #111111; margin-bottom: 5px;
+    }
+    .su-pp-step-body {
+      font-size: 14px; font-weight: 600; color: #222222; line-height: 1.65;
+    }
+    .su-pp-step-note {
+      font-size: 12px; font-style: italic; color: #777777;
+    }
+    .su-pp-em { color: #dc2626; font-weight: 700; white-space: nowrap; }
+    .su-pp-formula {
+      font-family: 'Quicksand', monospace; font-weight: 700; font-size: 13px;
+      background: rgba(0,0,0,0.04); border-radius: 5px;
+      padding: 5px 9px; margin: 4px 0; display: block;
+      color: #111111; line-height: 1.5;
+    }
+    .su-pp-widget-ref {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      color: #888888; background: rgba(0,0,0,0.06);
+      border-radius: 4px; padding: 1px 5px; margin-left: 4px;
+      letter-spacing: 0.02em; vertical-align: middle;
+    }
+    .su-pp-result {
+      margin-top: 12px; padding: 9px 12px;
+      background: rgba(220,38,38,0.05);
+      border: 1px solid rgba(220,38,38,0.20);
+      border-radius: 7px;
+      font-size: 14px; font-weight: 700; color: #111111; text-align: center;
+    }
+    .su-pp-warn {
+      font-size: 12px; font-style: italic; color: #aaaaaa;
+      margin-bottom: 10px;
+    }
+    .su-pp-widget-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #aaaaaa; margin-top: 14px; margin-bottom: 6px;
+    }
+    .su-pp-widget-preview {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 7px 12px 7px 10px;
+      background: #f7f7f7;
+      border-left: 3px solid #dc2626;
+      border-radius: 0 8px 8px 0;
+    }
+    #su-popup-data {
+      border-top: 1px solid rgba(0,0,0,0.07);
+      padding: 0;
+    }
+    #su-popup-data summary {
+      padding: 8px 14px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+      color: #aaaaaa; cursor: pointer; list-style: none;
+      transition: color 0.15s;
+    }
+    #su-popup-data summary::-webkit-details-marker { display: none; }
+    #su-popup-data[open] summary { color: #555555; }
+    #su-popup-data summary:hover { color: #555555; }
+    .su-pp-table {
+      width: 100%; border-collapse: collapse;
+      margin: 0 0 10px; font-size: 12px;
+    }
+    .su-pp-table th {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; color: #aaaaaa;
+      text-align: right; padding: 3px 14px 5px;
+    }
+    .su-pp-table th:first-child { text-align: left; }
+    .su-pp-table td {
+      padding: 3px 14px; color: #555555;
+      text-align: right; font-variant-numeric: tabular-nums;
+      border-top: 1px solid rgba(0,0,0,0.05);
+    }
+    .su-pp-table td:first-child { text-align: left; }
+    .su-pp-table td.su-pp-td-em { color: #dc2626; font-weight: 700; }
+    .su-pp-sources {
+      padding: 0 14px 10px;
+      font-size: 11px; color: #aaaaaa; line-height: 1.5;
+    }
   `;
   document.head.appendChild(style);
+}
+
+// Renders a coloured arrow+percent delta badge used in both the inline widget
+// and the popup widget preview.
+function cwDelta(pct: number): string {
+  const arrow = pct <= 0 ? '↓' : '↑';
+  const cls   = pct <= 0 ? 'su-cw-dn' : 'su-cw-up';
+  return `<span class="su-cw-delta ${cls}">${arrow}${Math.abs(pct).toFixed(0)}%</span>`;
+}
+
+// ─── Info popup ───────────────────────────────────────────────────────────────
+// Single shared popup element, repositioned on every ⓘ click.
+
+/** Make `popup` draggable by dragging `handle`. Clears `bottom` on first drag
+ *  so the popup's position is fully determined by `top`+`left` afterwards. */
+function makePopupDraggable(popup: HTMLElement, handle: HTMLElement): void {
+  let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+  handle.addEventListener('mousedown', (e) => {
+    // Only drag on primary button; ignore clicks on the × close button.
+    if (e.button !== 0 || (e.target as Element).closest('#su-popup-close')) return;
+    e.preventDefault();
+    startX    = e.clientX;
+    startY    = e.clientY;
+    startLeft = popup.offsetLeft;
+    startTop  = popup.offsetTop;
+    handle.style.cursor = 'grabbing';
+
+    const onMove = (e: MouseEvent) => {
+      popup.style.left   = `${startLeft + e.clientX - startX}px`;
+      popup.style.top    = `${startTop  + e.clientY - startY}px`;
+      popup.style.bottom = '';
+    };
+    const onUp = () => {
+      handle.style.cursor = 'grab';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
+}
+// Context is stored in a WeakMap keyed on the ⓘ button element so no data
+// needs to be serialised into the DOM.
+
+let infoPopupEl: HTMLElement | null = null;
+const _popupCtx = new WeakMap<HTMLElement, PopupCtx>();
+
+function buildInfoPopup(): HTMLElement {
+  const el = document.createElement('div');
+  el.id = 'su-info-popup';
+  el.classList.add('su-popup-hidden');
+  el.innerHTML = `
+    <div id="su-popup-header">
+      <span id="su-popup-title">${t('popupTitle')}</span>
+      <button id="su-popup-close" title="${t('popupClose')}">✕</button>
+    </div>
+    <div id="su-popup-body"></div>
+    <details id="su-popup-data">
+      <summary>${t('popupDataSummary')}</summary>
+      <div id="su-popup-table-wrap"></div>
+      <p class="su-pp-sources" id="su-popup-sources"></p>
+    </details>
+  `;
+  el.querySelector('#su-popup-close')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hideInfoPopup();
+  });
+  makePopupDraggable(el, el.querySelector('#su-popup-header')!);
+  document.body.appendChild(el);
+  return el;
+}
+
+function renderPopupContent(ctx: PopupCtx): void {
+  const popup = infoPopupEl!;
+  const { c, region, isEstimated, nowIndex, histIndex, nowWage, histWage } = ctx;
+
+  const regionName  = REGION_DISPLAY_NAMES[region];
+  const priceRatioN = nowIndex / histIndex;
+  const priceRatioStr    = priceRatioN.toFixed(2);
+  const priceGrowthPct   = ((priceRatioN - 1) * 100).toFixed(0);
+  const histRatePct      = (c.historicalRate * 100).toFixed(2);
+  const nowRatePct       = (c.currentRate    * 100).toFixed(2);
+
+  // ── Derived deltas for the widget preview ─────────────────────────────────
+  const priceDeltaPct = ((c.burdenEquivalentPrice    - c.currentPrice)            / c.currentPrice)            * 100;
+  const payDeltaPct   = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+
+  // ── Body: step-by-step walkthrough ────────────────────────────────────────
+  const body = popup.querySelector<HTMLElement>('#su-popup-body')!;
+
+  const absPayDelta   = Math.abs(payDeltaPct).toFixed(0);
+  const absPriceDelta = Math.abs(priceDeltaPct).toFixed(0);
+  const payArrow      = payDeltaPct   <= 0 ? '↓' : '↑';
+  const priceArrow    = priceDeltaPct <= 0 ? '↓' : '↑';
+
+  body.innerHTML = `
+    ${isEstimated
+      ? `<p class="su-pp-warn">${t('ppEstimatedRegion')}</p>`
+      : ''}
+    <div class="su-pp-listing">
+      🏠 <span>${formatCZK(c.currentPrice)}</span>
+      <span class="su-pp-listing-hist">${t('ppHistLabel', c.comparisonYear)} ${formatCZK(c.burdenEquivalentPrice)}</span>
+      <span class="su-pp-listing-region">· ${regionName}</span>
+    </div>
+
+    <div class="su-pp-step">
+      <div class="su-pp-step-head">${t('ppStep1Head')}</div>
+      <div class="su-pp-step-body">
+        ${t('ppStep1Payment', formatCZK(c.currentPrice), nowRatePct, formatCZK(c.currentMonthlyPayment))}<br>
+        ${t('ppStep1Income', regionName, CURRENT.year, formatCZK(c.currentHouseholdNetIncome))}<br>
+        <code class="su-pp-formula">
+          ${t('ppBurdenFormula')} = ${formatCZK(c.currentMonthlyPayment)} ÷ ${formatCZK(c.currentHouseholdNetIncome)}
+          = <span class="su-pp-em">${formatBurdenPercent(c.currentBurdenRatio)}</span>
+        </code>
+      </div>
+    </div>
+
+    <div class="su-pp-step">
+      <div class="su-pp-step-head">${t('ppStep2Head', c.comparisonYear)}</div>
+      <div class="su-pp-step-body">
+        ${t('ppStep2Growth', regionName, c.comparisonYear, priceGrowthPct, formatCZK(c.historicalPrice))}<br>
+        ${t('ppStep2Payment', formatCZK(c.historicalPrice), histRatePct, formatCZK(c.historicalMonthlyPayment))}
+        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', payArrow, absPayDelta)}</span><br>
+        ${t('ppStep2Income', regionName, c.comparisonYear, formatCZK(c.historicalHouseholdNetIncome))}<br>
+        <code class="su-pp-formula">
+          ${t('ppBurdenFormula')} = ${formatCZK(c.historicalMonthlyPayment)} ÷ ${formatCZK(c.historicalHouseholdNetIncome)}
+          = <span class="su-pp-em">${formatBurdenPercent(c.historicalBurdenRatio)}</span>
+          <span class="su-pp-widget-ref">${t('ppWidgetBurdenRef', formatBurdenPercent(c.historicalBurdenRatio))}</span>
+        </code>
+      </div>
+    </div>
+
+    <div class="su-pp-step">
+      <div class="su-pp-step-head">${t('ppStep3Head')}</div>
+      <div class="su-pp-step-body">
+        ${t('ppStep3Body', formatBurdenPercent(c.historicalBurdenRatio))}<br>
+        <code class="su-pp-formula">
+          ${formatCZK(c.currentPrice)} × (${formatBurdenPercent(c.historicalBurdenRatio)} ÷ ${formatBurdenPercent(c.currentBurdenRatio)})
+          = <span class="su-pp-em">${formatCZK(c.burdenEquivalentPrice)}</span>
+          <span class="su-pp-widget-ref">${t('ppWidgetPriceRef', priceArrow, absPriceDelta)}</span>
+        </code>
+      </div>
+    </div>
+
+    <div class="su-pp-result">
+      ${t('ppResult', formatMultiplier(c.stressMultiplier), c.comparisonYear)}
+    </div>
+
+    <p class="su-pp-widget-label">${t('ppWidgetLabel')}</p>
+    <div class="su-pp-widget-preview">
+      <div class="su-cw-row">
+        <span class="su-cw-year">${CURRENT.year}</span>
+        <span class="su-cw-price">${formatCZK(c.currentPrice)}</span>
+        <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.currentBurdenRatio)})</span>
+      </div>
+      <div class="su-cw-row">
+        <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
+        <span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>
+      </div>
+      <hr class="su-cw-divider" />
+      <div class="su-cw-row">
+        <span class="su-cw-year su-cw-year-hist">${c.comparisonYear}</span>
+        ${cwDelta(priceDeltaPct)}
+        <span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span>
+        <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>
+      </div>
+      <div class="su-cw-row">
+        <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
+        ${cwDelta(payDeltaPct)}
+        <span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>
+      </div>
+    </div>
+  `;
+
+  // ── Data sources table ─────────────────────────────────────────────────────
+  const tableWrap = popup.querySelector<HTMLElement>('#su-popup-table-wrap')!;
+  tableWrap.innerHTML = `
+    <table class="su-pp-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>${c.comparisonYear}</th>
+          <th>${CURRENT.year}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${t('tableWageRow', regionName)}</td>
+          <td>${formatCZK(histWage)}</td>
+          <td class="su-pp-td-em">${formatCZK(nowWage)}</td>
+        </tr>
+        <tr>
+          <td>${t('tableRateRow')}</td>
+          <td>${histRatePct}%</td>
+          <td class="su-pp-td-em">${nowRatePct}%</td>
+        </tr>
+        <tr>
+          <td>${t('tablePriceIndexRow')}</td>
+          <td>${Math.round(histIndex)}</td>
+          <td class="su-pp-td-em">${Math.round(nowIndex)}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  const sources = popup.querySelector<HTMLElement>('#su-popup-sources')!;
+  sources.textContent = t('tableSources', DATA_VERSION);
+}
+
+function positionPopup(anchor: HTMLElement): void {
+  const popup = infoPopupEl!;
+  const rect  = anchor.getBoundingClientRect();
+  const vw    = window.innerWidth;
+  const vh    = window.innerHeight;
+  const pW    = 550;  // max popup width
+
+  // Prefer showing popup to the left of the anchor; flip right if too close to left edge.
+  const leftIfLeft = rect.right - pW;
+  const left = leftIfLeft >= 8 ? leftIfLeft : rect.left;
+
+  // Prefer below; flip above if not enough space below.
+  const spaceBelow = vh - rect.bottom;
+  const top = spaceBelow >= 40 ? rect.bottom + 6 : rect.top - 6;
+  const transformOrigin = spaceBelow >= 40 ? 'top right' : 'bottom right';
+
+  popup.style.left   = `${Math.max(8, Math.min(left, vw - pW - 8))}px`;
+  popup.style.top    = spaceBelow >= 40 ? `${top}px` : '';
+  popup.style.bottom = spaceBelow < 40  ? `${vh - rect.top + 6}px` : '';
+  popup.style.transformOrigin = transformOrigin;
+}
+
+function showInfoPopup(anchor: HTMLElement, ctx: PopupCtx): void {
+  ensureComparisonCSS();
+  if (!infoPopupEl) infoPopupEl = buildInfoPopup();
+
+  renderPopupContent(ctx);
+  positionPopup(anchor);
+
+  // Re-trigger animation by removing and re-adding the element's animation.
+  infoPopupEl.classList.remove('su-popup-hidden');
+  infoPopupEl.style.animation = 'none';
+  // Force reflow so the re-applied animation actually fires.
+  void infoPopupEl.offsetHeight;
+  infoPopupEl.style.animation = '';
+}
+
+function hideInfoPopup(): void {
+  infoPopupEl?.classList.add('su-popup-hidden');
 }
 
 // ─── Listing page comparison (inline widgets) ─────────────────────────────────
@@ -994,50 +1420,68 @@ function renderListingComparisons() {
 
       const c = computeBurdenComparison(currentPrice, activeYear, region);
 
+      // Regional indices and wages for the info popup walkthrough.
+      const nowRegional  = getRegionalData(CURRENT.year, region);
+      const histRegional = getRegionalData(activeYear, region);
+
       // priceDelta and burdenDelta are mathematically identical (equiv price IS
       // derived from the burden ratio), so we only show one delta.
       const priceDeltaPct = ((c.burdenEquivalentPrice    - currentPrice)            / currentPrice)            * 100;
       const payDeltaPct   = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
-
-      function delta(pct: number): string {
-        const arrow = pct <= 0 ? "↓" : "↑";
-        const cls   = pct <= 0 ? "su-cw-dn" : "su-cw-up";
-        return `<span class="su-cw-delta ${cls}">${arrow}${Math.abs(pct).toFixed(0)}%</span>`;
-      }
-
-      const tooltip = `${isEstimated ? "Praha (est.)" : region} · ${(c.currentRate * 100).toFixed(2)}% now → ${(c.historicalRate * 100).toFixed(2)}% in ${activeYear}`;
 
       widget.innerHTML =
         // Line 1: current year — price + burden
         `<div class="su-cw-row">` +
           `<span class="su-cw-year">${CURRENT.year}</span>` +
           `<span class="su-cw-price">${formatCZK(currentPrice)}</span>` +
-          `<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.currentBurdenRatio)})</span>` +
-          `<span class="su-cw-info" title="${tooltip}">ⓘ</span>` +
+          `<span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.currentBurdenRatio)})</span>` +
+          `<button class="su-cw-info" title="${t('widgetInfoTooltip')}">` +
+            `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">` +
+              `<circle cx="7" cy="7" r="6.25" stroke="currentColor" stroke-width="1.5"/>` +
+              `<line x1="7" y1="6.5" x2="7" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
+              `<circle cx="7" cy="4.25" r="0.85" fill="currentColor"/>` +
+            `</svg>` +
+          `</button>` +
         `</div>` +
         // Line 2: current mortgage
         `<div class="su-cw-row">` +
-          `<span class="su-cw-mort-label">Mortgage</span>` +
-          `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}/měs</span>` +
+          `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
+          `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>` +
         `</div>` +
         `<hr class="su-cw-divider" />` +
         // Line 3: comparison year — delta + equiv price + burden
         `<div class="su-cw-row">` +
           `<span class="su-cw-year su-cw-year-hist">${activeYear}</span>` +
-          `${delta(priceDeltaPct)}` +
+          `${cwDelta(priceDeltaPct)}` +
           `<span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span>` +
-          `<span class="su-cw-burden">(Burden ${formatBurdenPercent(c.historicalBurdenRatio)})</span>` +
+          `<span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>` +
         `</div>` +
         // Line 4: historical mortgage + delta
         `<div class="su-cw-row">` +
-          `<span class="su-cw-mort-label">Mortgage</span>` +
-          `${delta(payDeltaPct)}` +
-          `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}/měs</span>` +
+          `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
+          `${cwDelta(payDeltaPct)}` +
+          `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>` +
         `</div>`;
+
+      // Attach popup context to the ⓘ button and wire up the click handler.
+      const infoBtn = widget.querySelector<HTMLElement>('.su-cw-info')!;
+      const popupCtx: PopupCtx = {
+        c, region, isEstimated,
+        nowIndex:  nowRegional.priceIndex,
+        histIndex: histRegional.priceIndex,
+        nowWage:   nowRegional.avgWage,
+        histWage:  histRegional.avgWage,
+      };
+      _popupCtx.set(infoBtn, popupCtx);
+      infoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ctx = _popupCtx.get(infoBtn);
+        if (ctx) showInfoPopup(infoBtn, ctx);
+      });
     } catch {
       widget.innerHTML =
         `<span class="su-cw-year">${activeYear}</span>` +
-        `<span style="font-size:10px;font-style:italic;color:#9a8268;">no data</span>`;
+        `<span style="font-size:11px;font-style:italic;color:#9a8268;">${t('widgetNoData')}</span>`;
     }
 
     priceEl.after(widget);
@@ -1068,13 +1512,13 @@ function updateDetailComparison() {
                  ?? prices[0];
 
   if (!mainEntry) {
-    content.innerHTML = `<div class="su-comp-nodata">No price detected on this page</div>`;
+    content.innerHTML = `<div class="su-comp-nodata">${t('compNoPrice')}</div>`;
     return;
   }
 
   const currentPrice = parseCzechPrice(mainEntry.value);
   if (currentPrice === null || currentPrice === 0) {
-    content.innerHTML = `<div class="su-comp-nodata">Could not parse price</div>`;
+    content.innerHTML = `<div class="su-comp-nodata">${t('compCantParse')}</div>`;
     return;
   }
 
@@ -1085,8 +1529,8 @@ function updateDetailComparison() {
     const c = computeBurdenComparison(currentPrice, activeYear, region);
 
     const stressLabel = c.stressMultiplier >= 1.0
-      ? `${formatMultiplier(c.stressMultiplier)} more burdensome`
-      : `${formatMultiplier(1 / c.stressMultiplier)} less burdensome`;
+      ? t('compMoreBurden', formatMultiplier(c.stressMultiplier))
+      : t('compLessBurden', formatMultiplier(1 / c.stressMultiplier));
     const stressCls = c.stressMultiplier >= 1.0 ? "su-comp-pct-up" : "su-comp-pct-down";
 
     const equivPct = ((c.burdenEquivalentPrice - currentPrice) / currentPrice) * 100;
@@ -1096,7 +1540,7 @@ function updateDetailComparison() {
     content.innerHTML = `
       <div class="su-comp-grid">
         <div class="su-comp-row">
-          <span class="su-comp-label">Burden now</span>
+          <span class="su-comp-label">${t('compBurdenNow')}</span>
           <span class="su-comp-value">${formatBurdenPercent(c.currentBurdenRatio)}</span>
         </div>
         <div class="su-comp-row">
@@ -1106,26 +1550,26 @@ function updateDetailComparison() {
         </div>
         <hr class="su-comp-divider" />
         <div class="su-comp-row">
-          <span class="su-comp-label">Equiv. price</span>
+          <span class="su-comp-label">${t('compEquivPrice')}</span>
           <span class="su-comp-value su-comp-value-adj">${formatCZK(c.burdenEquivalentPrice)}</span>
           <span class="su-comp-pct-tag ${equivCls}">${equivSign}${Math.abs(equivPct).toFixed(1)}%</span>
         </div>
         <hr class="su-comp-divider" />
         <div class="su-comp-row">
-          <span class="su-comp-label">Payment now</span>
-          <span class="su-comp-value">${formatCZK(c.currentMonthlyPayment)}/měs</span>
+          <span class="su-comp-label">${t('compPaymentNow')}</span>
+          <span class="su-comp-value">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>
         </div>
         <div class="su-comp-row">
-          <span class="su-comp-label">Payment ${activeYear}</span>
-          <span class="su-comp-value su-comp-value-adj">${formatCZK(c.historicalMonthlyPayment)}/měs</span>
+          <span class="su-comp-label">${t('compPaymentYear', activeYear)}</span>
+          <span class="su-comp-value su-comp-value-adj">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>
         </div>
         ${isEstimated
-          ? `<div style="font-size:10px;color:#9a8268;text-align:center;margin-top:4px;">⚡ region estimated as Praha</div>`
+          ? `<div style="font-size:11px;color:#9a8268;text-align:center;margin-top:4px;">${t('compRegionEst')}</div>`
           : ""}
       </div>
     `;
   } catch {
-    content.innerHTML = `<div class="su-comp-nodata">No data available for ${activeYear}</div>`;
+    content.innerHTML = `<div class="su-comp-nodata">${t('compNoData', activeYear!)}</div>`;
   }
 }
 
@@ -1192,8 +1636,55 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // ─── Auto-open on page load ───────────────────────────────────────────────────
 
-chrome.storage.sync.get({ autoOpen: true }, (settings) => {
+chrome.storage.sync.get({ autoOpen: true, lang: 'cs' }, (settings) => {
+  setLang((settings.lang as Lang) ?? 'cs');
   if (settings.autoOpen) showMainOverlay();
+});
+
+// Dismiss the info popup when clicking anywhere outside it.
+// Uses capture phase for broad coverage, but explicitly ignores clicks on the
+// ⓘ button itself — those are handled by the button's own click listener.
+// (bubble-phase stopPropagation cannot cancel a capture-phase listener.)
+document.addEventListener('click', (e) => {
+  if (infoPopupEl && !infoPopupEl.classList.contains('su-popup-hidden')) {
+    const target = e.target as Node;
+    const onInfoBtn = target instanceof Element && !!target.closest('.su-cw-info');
+    if (!infoPopupEl.contains(target) && !onInfoBtn) hideInfoPopup();
+  }
+}, true);
+
+// ─── Language switching ────────────────────────────────────────────────────────
+
+/** Destroy and rebuild all injected UI so translations take effect immediately. */
+function rebuildAllUI(): void {
+  // Reset info popup singleton — rebuilt fresh on next ⓘ click.
+  if (infoPopupEl) { infoPopupEl.remove(); infoPopupEl = null; }
+
+  // Rebuild main overlay (showMainOverlay re-renders widgets via applyHighlights).
+  if (mainOverlayEl) {
+    const wasVisible = mainVisible;
+    mainOverlayEl.remove();
+    mainOverlayEl = null;
+    mainVisible = false;
+    clearListingComparisons();
+    if (wasVisible) showMainOverlay();
+  }
+
+  // Rebuild debug overlay.
+  if (debugOverlayEl) {
+    const wasVisible = debugVisible;
+    debugOverlayEl.remove();
+    debugOverlayEl = null;
+    debugVisible = false;
+    if (wasVisible) showDebugOverlay();
+  }
+}
+
+// Picks up language changes written by popup.ts to chrome.storage.sync.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync' || !changes.lang) return;
+  setLang((changes.lang.newValue as Lang) ?? 'cs');
+  rebuildAllUI();
 });
 
 // ─── Message listener ─────────────────────────────────────────────────────────

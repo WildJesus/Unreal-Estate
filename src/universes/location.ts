@@ -220,15 +220,42 @@ const REGION_MAP: Readonly<Record<string, CzechRegion>> = {
 
 } as const;
 
+// ── Pre-sorted keys (longest first) for contains matching ─────────────────────
+// Built once at module load. Longest-key-first prevents "usti" (4 chars) from
+// matching "usti nad orlici" before "usti nad labem" (14 chars) gets a chance.
+const _SORTED_KEYS: readonly string[] = (Object.keys(REGION_MAP) as string[])
+  .sort((a, b) => b.length - a.length);
+
 // ── Public API: mapToRegion ───────────────────────────────────────────────────
 
 /**
  * Map any Czech city / district / okres name to its kraj.
- * Accepts both display text ("Plzeň") and ASCII slugs ("plzen").
- * Returns null if the locality is not recognised.
+ * Accepts display text ("Plzeň"), ASCII slugs ("plzen"), and partial text
+ * containing a known city or okres name (e.g. "Brno-střed" → jihomoravsky).
+ * Returns null if no region can be determined.
  */
 export function mapToRegion(locality: string): CzechRegion | null {
-  return REGION_MAP[fold(locality)] ?? null;
+  const folded = fold(locality);
+
+  // 1. Exact match — fastest path, covers most cases.
+  const exact = REGION_MAP[folded];
+  if (exact) return exact;
+
+  // 2. Praha prefix fast path — catches "Praha 14", "Praha-Letňany", "Praha 22"
+  //    and any other Praha sub-unit not explicitly listed in the table.
+  if (folded.startsWith('praha')) return 'praha';
+
+  // 3. Contains match (longest key first) — catches composite locality strings
+  //    such as "Brno-střed" (contains "brno"), "Ostrava - Poruba" (contains
+  //    "ostrava"), or "Zápy, okres Praha-východ" (contains "praha-vychod").
+  //    Minimum key length 4 skips trivially short map entries.
+  for (const key of _SORTED_KEYS) {
+    if (key.length >= 4 && folded.includes(key)) {
+      return REGION_MAP[key as keyof typeof REGION_MAP];
+    }
+  }
+
+  return null;
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -249,11 +276,12 @@ function parseLocality(text: string): { city: string; district?: string } | null
     if (city) return { city, district: district || undefined };
   }
 
-  // Bare city name — require at least 5 characters to avoid false positives
-  // from short common Czech words that are also city names (e.g. "most" = bridge).
-  // Multi-word cities like "Praha 10" (8 chars) are fine; short names like "Brno"
-  // (4 chars) are caught by the "City - District" path when context is available.
-  if (trimmed.length >= 5) return { city: trimmed };
+  // Bare city name — require at least 4 characters to avoid false positives
+  // from short Czech words that are also city names (e.g. "most" = bridge).
+  // 4-char minimum captures "Brno", "Zlín", "Most", while excluding 3-char noise
+  // like "byt" (apartment), "dum" (house), "ulm". The downstream mapToRegion
+  // lookup is the real guard: only known city names produce a result.
+  if (trimmed.length >= 4) return { city: trimmed };
   return null;
 }
 
@@ -379,20 +407,47 @@ export function extractLocationFromDetail(doc: Document): LocationResult | null 
   return fromBreadcrumb(doc) ?? fromUrl();
 }
 
+// CSS class substring selectors for sreality's React/CSS-Modules DOM.
+// CSS Modules hash class names but keep the human-readable prefix, e.g.
+// "PropertyCard_locality__xk23n" — so [class*="locality"] still matches.
+const LOCALITY_SELECTORS = [
+  '[class*="locality"]',
+  '[class*="location"]',
+  '[class*="address"]',
+  '[class*="place"]',
+] as const;
+
 /**
  * Extract location from a listing card element.
- * Walks up to find the card container, then scans text nodes for a locality
- * string matching the pattern "City - District" or a known city name.
+ *
+ * Strategy (in priority order):
+ *   1. CSS selector scan — look for elements whose class name contains a
+ *      locality-related keyword (locality, location, address, place). This is
+ *      the fastest and most precise path on sreality's React DOM.
+ *   2. Text-node walker fallback — scans all text nodes in the card container
+ *      for strings matching the "City - District" pattern or a known city name.
  */
 export function extractLocationFromCard(el: Element): LocationResult | null {
   const card = getCardContainer(el);
 
+  // ── Pass 1: CSS selector strategy ────────────────────────────────────────
+  for (const sel of LOCALITY_SELECTORS) {
+    for (const locEl of card.querySelectorAll(sel)) {
+      const raw = locEl.textContent?.trim() ?? '';
+      if (raw.length < 4 || raw.length > 80) continue;
+      if (/\d.*Kč|Kč.*\d|m²|m2|\d+\s*\+\s*\d+/i.test(raw)) continue;
+      const result = tryParseLocality(raw, 'card');
+      if (result) return result;
+    }
+  }
+
+  // ── Pass 2: Text-node walker fallback ─────────────────────────────────────
   const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {
     const raw = walker.currentNode.textContent?.trim() ?? '';
 
     // Skip empty, too-long, or obviously non-locality text
-    if (raw.length < 3 || raw.length > 80) continue;
+    if (raw.length < 4 || raw.length > 80) continue;
     if (/\d.*Kč|Kč.*\d|m²|m2|\d+\s*\+\s*\d+/i.test(raw)) continue;
 
     const result = tryParseLocality(raw, 'card');
