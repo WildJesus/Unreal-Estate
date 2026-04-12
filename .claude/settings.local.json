@@ -17,7 +17,10 @@
       "WebFetch(domain:www.globalpropertyguide.com)",
       "WebFetch(domain:csu.gov.cz)",
       "WebFetch(domain:fred.stlouisfed.org)",
-      "Skill(commit-commands:commit-push-pr)"
+      "Skill(commit-commands:commit-push-pr)",
+      "Bash(gh pr:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }

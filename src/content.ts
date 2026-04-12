@@ -9,9 +9,14 @@ import {
   formatCZK,
   parseCzechPrice,
 } from "./universes/calc";
-import { CURRENT, getTargetYearData } from "./universes/data";
+import { getCurrentYearData, getYearData } from "./universes/data";
 
-const VERSION = "0.2.0";
+// Snapshot of current-year economic data. Evaluated once at module load — the
+// page doesn't live long enough for this to become stale.
+const CURRENT = getCurrentYearData();
+import { type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
+
+const VERSION = "0.3.0";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -166,6 +171,10 @@ let activeYear: number | null = null;
 let comparisonEls: Element[] = [];
 let comparisonCSSInjected = false;
 
+// Detected location for the current page. Updated on every applyHighlights()
+// call (which fires on page load, SPA navigation, and DOM mutations).
+let detectedLocation: LocationResult | null = null;
+
 // ─── Highlights ───────────────────────────────────────────────────────────────
 // Applies a faded orange highlight to every DOM element whose text is a
 // matched price. Mirrors the same targeting logic as the scanners above.
@@ -189,6 +198,8 @@ function highlightIn(root: Element, excluded: Element[] = []) {
 
 function applyHighlights() {
   removeHighlights();
+  // Refresh location on every highlight pass (covers SPA navigation).
+  detectedLocation = isDetailPage() ? extractLocationFromDetail(document) : null;
   // Exclude both overlay panels so their price text doesn't get highlighted.
   const overlayExclusions: Element[] = [];
   if (mainOverlayEl) overlayExclusions.push(mainOverlayEl);
@@ -309,10 +320,13 @@ function buildDebugOverlay(): HTMLElement {
     #su-dbg-price-list::-webkit-scrollbar-thumb { background: rgba(249,115,22,0.25); border-radius: 2px; }
 
     .su-dbg-price-item {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 0; border-bottom: 1px solid rgba(249,115,22,0.09); gap: 10px;
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 8px 0; border-bottom: 1px solid rgba(249,115,22,0.09);
     }
     .su-dbg-price-item:last-child { border-bottom: none; }
+    .su-dbg-pi-top {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
     .su-dbg-price-value {
       color: #fef3c7; font-size: 15px; font-weight: 700;
       font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -322,6 +336,21 @@ function buildDebugOverlay(): HTMLElement {
       text-transform: uppercase; color: #a38d72;
       background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.15);
       border-radius: 4px; padding: 3px 7px; white-space: nowrap; flex-shrink: 0;
+    }
+    .su-dbg-pi-loc {
+      display: flex; justify-content: space-between; align-items: center; gap: 6px;
+    }
+    .su-dbg-loc-text {
+      font-size: 11px; font-weight: 600; color: #a38d72;
+    }
+    .su-dbg-loc-src {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #5a4a38; background: rgba(249,115,22,0.05);
+      border: 1px solid rgba(249,115,22,0.1); border-radius: 3px;
+      padding: 1px 5px; white-space: nowrap; flex-shrink: 0;
+    }
+    .su-dbg-loc-none {
+      font-size: 10px; font-style: italic; color: #5a4a38;
     }
     .su-dbg-empty {
       color: #6b5a44; font-style: italic; font-size: 12px;
@@ -356,25 +385,69 @@ function buildDebugOverlay(): HTMLElement {
   return el;
 }
 
-function renderDebugPrices(prices: PriceEntry[]) {
+function renderDebugFull() {
   if (!debugOverlayEl) return;
   const list = debugOverlayEl.querySelector("#su-dbg-price-list")!;
   const footer = debugOverlayEl.querySelector("#su-dbg-footer")!;
 
-  if (prices.length === 0) {
-    list.innerHTML = `<p class="su-dbg-empty">No prices found on this page.</p>`;
-    footer.textContent = "0 prices found";
+  if (isDetailPage()) {
+    // Detail page: one location per page — show it in the footer,
+    // source labels per price entry (Hlavní cena, Celková cena, etc.).
+    const prices = scanPrices();
+    if (prices.length === 0) {
+      list.innerHTML = `<p class="su-dbg-empty">No prices found on this page.</p>`;
+      footer.textContent = "0 prices";
+      return;
+    }
+    list.innerHTML = prices
+      .map((p) => `
+        <div class="su-dbg-price-item">
+          <div class="su-dbg-pi-top">
+            <span class="su-dbg-price-value">${p.value}</span>
+            <span class="su-dbg-price-source">${p.source}</span>
+          </div>
+        </div>`)
+      .join("");
+    const loc = detectedLocation;
+    footer.textContent = loc
+      ? `${prices.length} price${prices.length === 1 ? "" : "s"} · ${loc.region} [${loc.source}]`
+      : `${prices.length} price${prices.length === 1 ? "" : "s"} · location unknown`;
     return;
   }
 
-  list.innerHTML = prices
-    .map((p) => `
-      <div class="su-dbg-price-item">
-        <span class="su-dbg-price-value">${p.value}</span>
-        <span class="su-dbg-price-source">${p.source}</span>
-      </div>`)
+  // Listing page: per-card location from each highlighted price element.
+  // highlightedEls is populated by applyHighlights() before this runs.
+  if (highlightedEls.length === 0) {
+    list.innerHTML = `<p class="su-dbg-empty">No prices found on this page.</p>`;
+    footer.textContent = "0 prices";
+    return;
+  }
+
+  let located = 0;
+  list.innerHTML = highlightedEls
+    .map((el) => {
+      const price = normalizePrice(el.textContent ?? "");
+      const loc = extractLocationFromCard(el);
+      if (loc) located++;
+
+      const locRow = loc
+        ? `<div class="su-dbg-pi-loc">
+             <span class="su-dbg-loc-text">${loc.city ?? loc.region}${loc.district ? " · " + loc.district : ""}</span>
+             <span class="su-dbg-loc-src">${loc.source}</span>
+           </div>`
+        : `<div class="su-dbg-pi-loc"><span class="su-dbg-loc-none">location unknown</span></div>`;
+
+      return `
+        <div class="su-dbg-price-item">
+          <div class="su-dbg-pi-top">
+            <span class="su-dbg-price-value">${price}</span>
+          </div>
+          ${locRow}
+        </div>`;
+    })
     .join("");
-  footer.textContent = `${prices.length} price${prices.length === 1 ? "" : "s"} found`;
+
+  footer.textContent = `${highlightedEls.length} price${highlightedEls.length === 1 ? "" : "s"} · ${located}/${highlightedEls.length} located`;
 }
 
 function showDebugOverlay() {
@@ -384,8 +457,8 @@ function showDebugOverlay() {
   }
   debugOverlayEl.classList.remove("su-hidden");
   debugVisible = true;
-  renderDebugPrices(scanPrices());
-  applyHighlights();
+  applyHighlights();   // populates highlightedEls + detectedLocation first
+  renderDebugFull();   // then render with per-card location data
 }
 
 function hideDebugOverlay() {
@@ -894,7 +967,7 @@ function renderListingComparisons() {
   if (mainOverlayEl && yearChk && !yearChk.checked) return;
 
   ensureComparisonCSS();
-  const targetData = getTargetYearData(activeYear);
+  const targetData = getYearData(activeYear);
 
   for (const priceEl of highlightedEls) {
     // Skip elements inside our own overlays.
@@ -919,10 +992,10 @@ function renderListingComparisons() {
 
     const adjPrice = computeAdjustedPrice({
       currentPrice,
-      houseIndexTarget:    targetData.houseIndex,
-      houseIndexCurrent:   CURRENT.houseIndex,
-      incomeTarget:        targetData.income,
-      incomeCurrent:       CURRENT.income,
+      houseIndexTarget:    targetData.national.priceIndex,
+      houseIndexCurrent:   CURRENT.national.priceIndex,
+      incomeTarget:        targetData.national.avgWage,
+      incomeCurrent:       CURRENT.national.avgWage,
       targetMortgageRate:  targetData.mortgageRate,
       currentMortgageRate: CURRENT.mortgageRate,
       termMonths: DEFAULTS.TERM_MONTHS,
@@ -965,7 +1038,7 @@ function updateDetailComparison() {
 
   section.style.display = "";
 
-  const targetData = getTargetYearData(activeYear);
+  const targetData = getYearData(activeYear);
   if (!targetData) {
     content.innerHTML = `<div class="su-comp-nodata">No data available for ${activeYear}</div>`;
     return;
@@ -989,10 +1062,10 @@ function updateDetailComparison() {
 
   const adjPrice = computeAdjustedPrice({
     currentPrice,
-    houseIndexTarget:    targetData.houseIndex,
-    houseIndexCurrent:   CURRENT.houseIndex,
-    incomeTarget:        targetData.income,
-    incomeCurrent:       CURRENT.income,
+    houseIndexTarget:    targetData.national.priceIndex,
+    houseIndexCurrent:   CURRENT.national.priceIndex,
+    incomeTarget:        targetData.national.avgWage,
+    incomeCurrent:       CURRENT.national.avgWage,
     targetMortgageRate:  targetData.mortgageRate,
     currentMortgageRate: CURRENT.mortgageRate,
     termMonths: DEFAULTS.TERM_MONTHS,
@@ -1084,8 +1157,8 @@ const observer = new MutationObserver(() => {
   debounceTimer = setTimeout(() => {
     removeAdCards();
     if (debugVisible) {
-      renderDebugPrices(scanPrices());
-      applyHighlights();  // includes renderListingComparisons
+      applyHighlights();  // populates highlightedEls + detectedLocation
+      renderDebugFull();
     } else if (mainVisible) {
       applyHighlights();  // includes renderListingComparisons
     }
