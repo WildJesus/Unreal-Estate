@@ -10,39 +10,22 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-12): v0.2.0 working, v0.3.0 in progress
+## Current Status (2026-04-12): v0.4.0 working
 
 ### What's built and working
-- Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts)
+- Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
 - Manifest V3: popup, content script on sreality.cz, service worker
 - Price detection: TreeWalker scan, handles sreality anti-scraping (U+200B, per-char obfuscated spans)
 - Orange price highlights (`su-hl` class) injected on all detected price elements
 - Main overlay (bottom-left): year selector pills (2000/2005/2010/2015/2020), minimize/close
 - Debug overlay (bottom-right): raw detected prices with source labels
-- Inline comparison widgets: compact strip injected after each price element, shows adjusted price + %
+- Inline comparison widgets: 4-line stacked widget per price — burden %, burden-equivalent price, payment delta
+- Info popup (ⓘ icon): Czech/English walkthrough tracing exact widget number derivation step-by-step
 - Ad card removal: strips "TIP:" and "Reklama" cards from listing pages
 - MutationObserver (debounced 400ms): handles SPA navigation and lazy-loaded content
+- Location detection: CSS selector + text-node walker, 14 Czech kraje, longest-key-first `mapToRegion()`
+- i18n: Czech/English switcher in popup via `chrome.storage.sync`; live re-render via `storage.onChanged`
 - Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`
-
-### v0.3.0 implementation plan (prompts at C:\Users\Administrator\Downloads\srealitky-universes-prompts.md)
-Run these prompts IN ORDER, test each before starting the next:
-
-1. **Location Scraper** → `src/universes/location.ts`
-   - `CzechRegion` type (14 kraje), `LocationResult` interface
-   - `extractLocationFromDetail`, `extractLocationFromCard`, `mapToRegion`
-   - Sources: breadcrumb DOM, URL slug, card text (in priority order)
-
-2. **Regional Dataset** → replace `src/universes/data.ts`
-   - National + regional price indices, regional wages, MODEL_DEFAULTS
-   - `getRegionalData`, `getPriceIndex`, `getCurrentYearData`, `getAvailableYears`
-
-3. **Burden Ratio Model** → replace `src/universes/calc.ts`
-   - `BurdenComparison` interface, `computeBurdenComparison(price, year, region)`
-   - Formula: historical price (index-adjusted) + historical rate → burden % → stress multiplier
-
-4. **Updated Inline Widget** → update `src/content.ts`
-   - Shows burden %, stress multiplier (e.g. "1.68× worse"), burden-equivalent price, payment then→now
-   - Listing pages: compact; detail pages: full 4-line card
 
 ## Math Model (v0.3.0 — burden ratio)
 ```
@@ -65,13 +48,20 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
 - All overlay IDs/classes prefixed `su-` to avoid collision with sreality styles
 - Content script injects styles into `document.head`; no shadow DOM
 - `normalizePrice()` strips U+200B and NBSP before any price parsing
-- `findElByContent()` used instead of structural selectors where sreality obfuscates DOM
+- **i18n**: `src/i18n.ts` exports `t(key, ...args)` + `setLang(lang)`. Only imported by `content.ts`.
+  `popup.ts` has its own 5-key inline POPUP_STRINGS to avoid a shared Rollup chunk (content scripts
+  are classic scripts and cannot import from external chunk files).
+- Language stored as `lang: 'cs' | 'en'` in `chrome.storage.sync` (default `'cs'`).
+  `chrome.storage.onChanged` in content.ts drives live re-render via `rebuildAllUI()`.
+- `rebuildAllUI()` destroys and rebuilds all active overlays; restores `activeYear` into the new overlay.
 
 ## Design System
 - Font: Quicksand 400/600/700 via Google Fonts @import in injected style blocks
-- Palette: `#1c1208` dark bg, `#f97316`/`#fb923c` orange accent, `#fef3c7` cream, `#a38d72` muted
+- **Content script palette**: white bg `#ffffff`, primary text `#111111`, red accent `#dc2626`,
+  green/red deltas `#16a34a`/`#dc2626`, muted greys `#777777`/`#aaaaaa`
+- **Popup palette**: `#1c1208` dark bg, `#f97316`/`#fb923c` orange accent, `#fef3c7` cream (unchanged)
 - Vibe: artisanal minimalism — boutique café menu meets mortgage calculator
-- No entrance animations; subtle hover transitions only; `tabular-nums` for all prices
+- No entrance animations; subtle hover transitions only; `tabular-nums` for all prices; font-weight 600 for body text in info popup
 
 ## Repo
 - Private GitHub repo: WildJesus/srealitky-universes (separate from llm-lab monorepo)
