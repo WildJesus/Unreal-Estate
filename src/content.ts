@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.8";
+const VERSION = "0.5.9";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1022,12 +1022,14 @@ function ensureComparisonCSS() {
     .su-cw-dn { color: #16a34a !important; background: rgba(22,163,74,0.10) !important; }
     .su-cw-up { color: #dc2626 !important; background: rgba(220,38,38,0.10) !important; }
     .su-cw-info {
-      color: #bbbbbb !important; cursor: pointer;
+      color: #bbbbbb !important; cursor: pointer !important;
       margin-left: auto; flex-shrink: 0;
       background: none !important; border: none; padding: 0; line-height: 0;
       display: inline-flex; align-items: center; justify-content: center;
       transition: color 0.15s;
+      pointer-events: auto !important;
     }
+    .su-cw-info svg { pointer-events: none; }
     .su-cw-info:hover { color: #555555 !important; }
 
     /* ── Info popup ── */
