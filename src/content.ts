@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.10";
+const VERSION = "0.5.11";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1026,11 +1026,13 @@ function ensureComparisonCSS() {
       margin-left: auto; flex-shrink: 0;
       background: none !important; border: none; padding: 0; line-height: 0;
       display: inline-flex; align-items: center; justify-content: center;
-      transition: color 0.15s;
       pointer-events: auto !important;
     }
     .su-cw-info svg { pointer-events: none !important; }
-    .su-cw-info:hover { color: #555555 !important; }
+    .su-cw-info svg circle, .su-cw-info svg line { stroke: #bbbbbb !important; }
+    .su-cw-info svg circle[fill] { fill: #bbbbbb !important; }
+    .su-cw-info:hover svg circle, .su-cw-info:hover svg line { stroke: #555555 !important; }
+    .su-cw-info:hover svg circle[fill] { fill: #555555 !important; }
 
     /* ── Info popup ── */
     #su-info-popup {
@@ -1397,8 +1399,12 @@ function positionPopup(anchor: HTMLElement): void {
   const pW    = popup.offsetWidth  || 550;
   const pH    = popup.offsetHeight || 400;
 
-  // Horizontal: right-align with anchor, clamped to viewport.
-  const left = Math.max(8, Math.min(rect.right - pW, vw - pW - 8));
+  // Horizontal: open to the right of the anchor (doesn't cover the widget);
+  // fall back to left side if not enough room to the right.
+  const spaceRight = vw - rect.right - 8;
+  const left = spaceRight >= pW
+    ? rect.right + 8
+    : Math.max(8, rect.left - pW - 8);
 
   // Vertical: prefer below anchor; flip above if not enough room; always clamp.
   const spaceBelow = vh - rect.bottom - 6;
@@ -1506,9 +1512,9 @@ function renderListingComparisons() {
         // ── Full 3-section variant ─────────────────────────────────────────
         const infoSvg =
           `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">` +
-            `<circle cx="7" cy="7" r="6.25" stroke="currentColor" stroke-width="1.5"/>` +
-            `<line x1="7" y1="6.5" x2="7" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
-            `<circle cx="7" cy="4.25" r="0.85" fill="currentColor"/>` +
+            `<circle cx="7" cy="7" r="6.25" stroke="#bbbbbb" stroke-width="1.5"/>` +
+            `<line x1="7" y1="6.5" x2="7" y2="10" stroke="#bbbbbb" stroke-width="1.5" stroke-linecap="round"/>` +
+            `<circle cx="7" cy="4.25" r="0.85" fill="#bbbbbb"/>` +
           `</svg>`;
 
         widget.innerHTML =
