@@ -10,7 +10,7 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-13): v0.5.9 working
+## Current Status (2026-04-13): v0.5.11 working
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
@@ -29,7 +29,10 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
     both rows in col 2, price/payment in col 3. No extra height.
   - Map view: compact equiv-only variant stacked below price label
 - Info popup (ⓘ icon): Czech/English walkthrough tracing exact widget number derivation step-by-step
-  - `pointer-events: auto !important` on button; `pointer-events: none` on inner SVG (no flicker)
+  - Opens to the RIGHT of the widget (never covers it); falls back to left if no room
+  - Positions using real offsetHeight (shown at opacity:0 first); always fits in viewport
+  - Drag bounded to viewport — can't be pulled off screen
+  - SVG stroke/fill hardcoded (#bbbbbb), no currentColor; transition removed — breaks sreality hover inheritance loop that caused flicker
 - Detail comparison panel: matches inline widget 3-section layout exactly
 - Info popup header: `Price → EquivPrice · Region` (no house icon, uniform font)
 - Ad card removal: strips "TIP:" and "Reklama" cards from listing pages
@@ -51,6 +54,11 @@ Vite does not catch undefined template literal variable references at build time
 **Sreality card pointer-events** — Our widgets land inside sreality's card `<a>` tags via `priceEl.after()`.
 Sreality applies `pointer-events: none` to anchor descendants. Any interactive element in our widget needs
 `pointer-events: auto !important` to stay clickable.
+
+**SVG currentColor + transition = flicker loop** — Any SVG that uses `currentColor` inherits `color` from its
+button parent. If that button is inside a sreality card, sreality's `:hover` keeps fighting our `!important`
+color. With `transition: color` on the button, this becomes a visible animation loop. Fix: hardcode SVG
+stroke/fill values; remove color transition; target SVG elements directly with `:hover` CSS.
 
 ## Math Model (v0.3.0 — burden ratio)
 ```
