@@ -70,7 +70,6 @@ const T = {
 
     // ── Info popup — walkthrough content ──────────────────────────────────────
     ppEstimatedRegion:  '⚡ Region nebyl rozpoznán — používáme data pro Prahu',
-    ppHistLabel:        (year: number) => `→ ekvivalent ${year}:`,
     ppStep1Head:        '1. Dnešní zatížení hypotékou',
     ppStep1Payment:     (price: string, rate: string, payment: string) =>
                           `Splátka dnes: ${price}, 10% akontace, sazba ${rate}% → ${payment}/měs`,
@@ -173,7 +172,6 @@ const T = {
 
     // ── Info popup — walkthrough content ──────────────────────────────────────
     ppEstimatedRegion:  '⚡ Region not detected — using Praha data',
-    ppHistLabel:        (year: number) => `→ ${year} equivalent:`,
     ppStep1Head:        '1. Today\'s mortgage burden',
     ppStep1Payment:     (price: string, rate: string, payment: string) =>
                           `Payment today: ${price}, 10% down, rate ${rate}% → ${payment}/month`,

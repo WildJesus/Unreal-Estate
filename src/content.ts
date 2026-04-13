@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1041,11 +1041,11 @@ function ensureComparisonCSS() {
     #su-popup-close:hover { color: #111111; }
     #su-popup-body { padding: 12px 14px; }
     .su-pp-listing {
-      font-size: 15px; font-weight: 700; color: #111111; margin-bottom: 12px;
+      font-size: 14px; font-weight: 700; color: #111111; margin-bottom: 12px;
       display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px;
     }
     .su-pp-listing-hist {
-      font-size: 14px; font-weight: 700; color: #444444;
+      font-size: 14px; font-weight: 700; color: #111111;
     }
     .su-pp-listing-region { font-size: 13px; font-weight: 600; color: #777777; }
     .su-pp-step { margin-bottom: 13px; }
@@ -1236,8 +1236,8 @@ function renderPopupContent(ctx: PopupCtx): void {
       ? `<p class="su-pp-warn">${t('ppEstimatedRegion')}</p>`
       : ''}
     <div class="su-pp-listing">
-      🏠 <span>${formatCZK(c.currentPrice)}</span>
-      <span class="su-pp-listing-hist">${t('ppHistLabel', c.comparisonYear)} ${formatCZK(c.burdenEquivalentPrice)}</span>
+      <span>${formatCZK(c.currentPrice)}</span>
+      <span class="su-pp-listing-hist">→ ${formatCZK(c.burdenEquivalentPrice)}</span>
       <span class="su-pp-listing-region">· ${regionName}</span>
     </div>
 
