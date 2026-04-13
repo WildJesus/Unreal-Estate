@@ -138,9 +138,12 @@
       border: 1px solid rgba(220,38,38,0.12);
       border-radius: 6px;
       cursor: pointer;
-      font-size: 15px;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
       line-height: 1;
-      padding: 3px 7px;
+      padding: 4px 9px;
       transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
     .su-lang-btn:hover {
@@ -151,6 +154,31 @@
       border-color: rgba(220,38,38,0.45);
       box-shadow: 0 0 0 2px rgba(220,38,38,0.10);
     }
+
+    /* Srealitky launch link */
+    #launch-sreality-link {
+      color: #555555;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #launch-sreality-link:hover { color: #dc2626; }
+    #launch-sreality-link .su-ext-arrow {
+      font-size: 10px; color: #aaaaaa;
+    }
+    #launch-sreality-link:hover .su-ext-arrow { color: #dc2626; }
+
+    /* About button */
+    #about-btn {
+      margin-top: 6px;
+      background: rgba(220,38,38,0.05);
+      color: #777777;
+      border: 1px solid rgba(220,38,38,0.12);
+    }
+    #about-btn:hover { background: rgba(220,38,38,0.10); color: #555555; }
   </style>
 </head>
 <body>
@@ -171,13 +199,20 @@
   <div class="su-row">
     <span class="su-label" id="label-lang">Jazyk</span>
     <div class="su-lang-pills">
-      <button class="su-lang-btn active" id="lang-cs" data-lang="cs">🇨🇿</button>
-      <button class="su-lang-btn"        id="lang-en" data-lang="en">🇬🇧</button>
+      <button class="su-lang-btn active" id="lang-cs" data-lang="cs">CZ</button>
+      <button class="su-lang-btn"        id="lang-en" data-lang="en">ENG</button>
     </div>
+  </div>
+
+  <div class="su-row">
+    <a id="launch-sreality-link" href="https://www.sreality.cz/" target="_blank">
+      Sreality.cz <span class="su-ext-arrow">↗</span>
+    </a>
   </div>
 
   <button id="launch-btn" class="su-btn">Spustit overlay</button>
   <button id="debug-btn" class="su-btn">Spustit debugger</button>
+  <button id="about-btn" class="su-btn">O projektu</button>
   <div id="status"></div>
 
   <script src="popup.js" type="module"></script>

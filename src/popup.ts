@@ -4,11 +4,15 @@
 
 import { type Lang } from './i18n';
 
+// Feature flags — keep in sync with content.ts.
+const DEBUGGER_FEATURE_ENABLED = false;
+
 // ─── Element refs ─────────────────────────────────────────────────────────────
 
 const toggle        = document.getElementById('auto-open')        as HTMLInputElement;
 const launchBtn     = document.getElementById('launch-btn')       as HTMLButtonElement;
 const debugBtn      = document.getElementById('debug-btn')        as HTMLButtonElement;
+const aboutBtn      = document.getElementById('about-btn')        as HTMLButtonElement;
 const status        = document.getElementById('status')           as HTMLDivElement;
 const labelAutoOpen = document.getElementById('label-auto-open')  as HTMLSpanElement;
 const labelLang     = document.getElementById('label-lang')       as HTMLSpanElement;
@@ -22,6 +26,7 @@ const POPUP_STRINGS: Record<Lang, {
   langLabel:      string;
   launchOverlay:  string;
   launchDebugger: string;
+  about:          string;
   notOnSreality:  string;
 }> = {
   cs: {
@@ -29,6 +34,7 @@ const POPUP_STRINGS: Record<Lang, {
     langLabel:      'Jazyk',
     launchOverlay:  'Spustit overlay',
     launchDebugger: 'Spustit debugger',
+    about:          'O projektu',
     notOnSreality:  'Nejste na stránce sreality.cz.',
   },
   en: {
@@ -36,6 +42,7 @@ const POPUP_STRINGS: Record<Lang, {
     langLabel:      'Language',
     launchOverlay:  'Launch overlay',
     launchDebugger: 'Launch debugger',
+    about:          'About',
     notOnSreality:  'Not on a sreality.cz page.',
   },
 };
@@ -48,6 +55,7 @@ function applyPopupLang(lang: Lang) {
   labelLang.textContent     = s.langLabel;
   launchBtn.textContent     = s.launchOverlay;
   debugBtn.textContent      = s.launchDebugger;
+  aboutBtn.textContent      = s.about;
   langCs.classList.toggle('active', lang === 'cs');
   langEn.classList.toggle('active', lang === 'en');
   // Store for use in sendToActiveTab error message.
@@ -93,5 +101,9 @@ function sendToActiveTab(type: string) {
   });
 }
 
+// Hide debug button in production builds.
+if (!DEBUGGER_FEATURE_ENABLED) debugBtn.style.display = 'none';
+
 launchBtn.addEventListener('click', () => sendToActiveTab('show-overlay'));
-debugBtn.addEventListener('click',  () => sendToActiveTab('show-debugger'));
+if (DEBUGGER_FEATURE_ENABLED) debugBtn.addEventListener('click', () => sendToActiveTab('show-debugger'));
+aboutBtn.addEventListener('click',  () => sendToActiveTab('show-about'));

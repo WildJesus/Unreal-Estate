@@ -10,7 +10,7 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-13): v0.5.11 working
+## Current Status (2026-04-13): v1.0.0
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
@@ -21,26 +21,44 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
   - Year selector pills (2000/2005/2010/2015/2020) + range slider; default year 2015 on auto-open
   - Auto-opens **minimized** on page load; mini bar shows year as red clickable pill → click expands
   - Mini bar: "SREALITKY UNIVERSES · [2015] · ▭ · ✕" — year pill or ▭ button expands
-- Debug overlay (bottom-right): raw detected prices with source labels
+- Debug overlay (bottom-right): raw detected prices with source labels. **Hidden behind `DEBUGGER_FEATURE_ENABLED = false`.**
+- About overlay: project info, math explanation, data sources, **disclaimer** (not affiliated with Sreality/Seznam), accessible via "O projektu" button in popup
 - Inline comparison widgets: 3-section stacked widget per price — today / historical / burden-equivalent
   - Section 1: today's price + burden% + mortgage payment
   - Section 2: historical price (↓X%) + burden% + historical mortgage (↓X%)
   - Section 3 (equiv): CSS grid layout — label/mortgage in col 1, single shared ↓X% badge spanning
     both rows in col 2, price/payment in col 3. No extra height.
   - Map view: compact equiv-only variant stacked below price label
-- Info popup (ⓘ icon): Czech/English walkthrough tracing exact widget number derivation step-by-step
+- Info popup (ⓘ icon):
+  - Story-based "Jak se to počítá?" narrative — smart friend explaining the math, not a textbook
+  - Dynamic numbers woven into a continuous story: young couple in {region}, wages, price, mortgage payment, burden ratio, stress multiplier, burden-equivalent price
+  - Hero numbers (orange, large): current monthly payment, burden ratios, stress multiplier, equiv price
+  - Supporting numbers (white, bold): current/historical price, household income, rates, historical payment
+  - Comparison climax line + punchline line with left border
+  - Source footnote (ČSÚ · Hypoindex/ČNB · ČSÚ · v2026-04)
   - Opens to the RIGHT of the widget (never covers it); falls back to left if no room
   - Positions using real offsetHeight (shown at opacity:0 first); always fits in viewport
   - Drag bounded to viewport — can't be pulled off screen
   - SVG stroke/fill hardcoded (#bbbbbb), no currentColor; transition removed — breaks sreality hover inheritance loop that caused flicker
 - Detail comparison panel: matches inline widget 3-section layout exactly
-- Info popup header: `Price → EquivPrice · Region` (no house icon, uniform font)
+- ⓘ pulse animation (detail page only, first main price only):
+  - 5s initial delay after widget render, then red glow pulse (3s animation)
+  - Runs 3 times on 10s cooldown, then switches to 20s interval forever
+  - Stops permanently once user clicks ⓘ; `infoIconSeen` persisted via `chrome.storage.local`
+  - Resets on SPA navigation to new listing (tracked by `infoPulseHref = location.href`)
 - Ad card removal: strips "TIP:" and "Reklama" cards from listing pages
 - MutationObserver (debounced 400ms): handles SPA navigation and lazy-loaded content
 - Location detection: CSS selector + text-node walker, 14 Czech kraje, longest-key-first `mapToRegion()`
 - i18n: Czech/English switcher in popup via `chrome.storage.sync`; live re-render via `storage.onChanged`
-- Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`
+- Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`, `infoPopupEl`
 - Widget immune to parent card :hover via `!important` on all color/text/pointer-events properties
+- Extension icon: red **S** black **U** on white background (128×128 SVG → rasterized by `icons/generate-icons.mjs`)
+
+### Regional price data (v2026-04-regional-v2)
+- `REGIONAL_PRICE_INDICES` in `data.ts`: 27 years (2000–2026), 14 Czech kraje, base 2015=100
+- Built with `rpi()` positional builder helper — compact row-per-year format
+- `getRegionalData()` resolves two sources: price index from `REGIONAL_PRICE_INDICES`, wage from `entry.regions[region]?.avgWage` or national × stable ratio
+- `DATA_VERSION = '2026-04-regional-v2'` exported for version tracking
 
 ### Known pitfalls
 **Two year variables** — `buildMainOverlay()` has local `selectedYear` + module-level `activeYear`.
@@ -60,6 +78,29 @@ button parent. If that button is inside a sreality card, sreality's `:hover` kee
 color. With `transition: color` on the button, this becomes a visible animation loop. Fix: hardcode SVG
 stroke/fill values; remove color transition; target SVG elements directly with `:hover` CSS.
 
+**MutationObserver + CSS animation = two-guard pattern** — When a CSS animation runs on a widget element,
+the MutationObserver re-render cycle will destroy and recreate the animated element mid-animation (instant
+flicker/restart). The fix requires guards at BOTH ends:
+  1. `removeHighlights()`: skip `clearListingComparisons()` when `infoPulseActive`
+  2. `renderListingComparisons()`: early-return at the very start when `infoPulseActive`
+  This prevents both the DOM teardown AND the rebuild during the animation window.
+  Guarding only one side causes either blank widgets (guard 2 only) or horror-movie flickering (guard 1 only).
+  Burned in v0.5.14→v0.5.15. The `infoPulseActive` flag is set `true` on `triggerPulse()` and cleared after 3.2s.
+
+**SPA navigation click-through on ⓘ button** — Sreality uses React and navigates on `mousedown`, not `click`.
+Adding `stopPropagation()` only to `click` handler is not enough — the browser will still navigate before
+the click fires. Both `mousedown` (with `preventDefault()` too) and `click` handlers need `stopPropagation()`.
+Burned in v0.5.13.
+
+**infoPopupEl not in overlayExclusions** — The overlay exclusion list in `applyHighlights()` and
+`renderListingComparisons()` must include `infoPopupEl`. Without it, prices inside the info popup
+get highlighted and receive injected comparison widgets. Burned in v0.5.13.
+
+**CSS `!important` blocks animation keyframes** — The rule `.su-cw-info svg path { fill: #bbbbbb !important; }`
+overrides animation fill keyframes. Fix: use `.su-cw-info:not(.su-info-pulse) svg path { fill: #bbbbbb !important; }`
+to exclude the pulsing button. `!important` in a selector with lower specificity still wins at runtime.
+The `:not()` exclusion is the clean escape hatch. Burned in v0.5.14.
+
 ## Math Model (v0.3.0 — burden ratio)
 ```
 P_t = P_now × (priceIndex_t / priceIndex_now)          // historical price estimate
@@ -76,6 +117,7 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
 - TypeScript + Vite (multi-entry, ES module format, all deps bundled inline — no dynamic imports)
 - Manifest V3, no eval, no remote code
 - Dev workflow: `vite build --watch` + manual Chrome reload from dist/
+- Icon generation: `node icons/generate-icons.mjs` (uses `sharp` to rasterize SVG → PNG)
 
 ## Architecture Notes
 - Abstract enough to support other real estate sites beyond sreality.cz later
@@ -88,14 +130,23 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
 - Language stored as `lang: 'cs' | 'en'` in `chrome.storage.sync` (default `'cs'`).
   `chrome.storage.onChanged` in content.ts drives live re-render via `rebuildAllUI()`.
 - `rebuildAllUI()` destroys and rebuilds all active overlays; restores `activeYear` into the new overlay.
+- **Feature flags**: `DEBUGGER_FEATURE_ENABLED` and `CITY_FEATURE_ENABLED` are both `false` in production.
+  Must be kept in sync between `content.ts` and `popup.ts`.
+- **`chrome.storage.local`**: used for `infoIconSeen: boolean` (pulse animation kill-switch, permanent).
+  `chrome.storage.sync` is for user preferences (lang, autoOpen).
+- **`infoPopupEl`**: must be tracked as a module-level variable and added to `overlayExclusions` in both
+  `applyHighlights()` and `renderListingComparisons()`, just like `mainOverlayEl` and `debugOverlayEl`.
 
 ## Design System
 - Font: Quicksand 400/600/700 via Google Fonts @import in injected style blocks
-- **Content script palette**: white bg `#ffffff`, primary text `#111111`, red accent `#dc2626`,
-  green/red deltas `#16a34a`/`#dc2626`, muted greys `#777777`/`#aaaaaa`
-- **Popup palette**: white bg `#ffffff`, red accent `#dc2626`, muted grey `#888888` title (redesigned v0.5.0 to match widget)
+- **Widget dark palette**: bg `rgba(28,18,8,0.97)`, orange accent `#f97316`/`#fb923c`,
+  cream text `#fef3c7`, muted `#c4a882`/`#a38d72`, very muted `#826650`
+- **Info popup dark palette**: bg `#1c1208` (0.98), border `#3d2e1a`, title cream, body cream `#fef3c7`
+  Hero numbers: orange `#f97316`, supporting numbers: white `#ffffff`, source line: `#a89070`
+- **Content script list page palette**: white bg `#ffffff`, primary text `#111111`, red accent `#dc2626`
+- **Popup palette**: white bg `#ffffff`, red accent `#dc2626`, muted grey `#888888` title
 - Vibe: artisanal minimalism — boutique café menu meets mortgage calculator
-- No entrance animations; subtle hover transitions only; `tabular-nums` for all prices; font-weight 600 for body text in info popup
+- No entrance animations on widgets; subtle hover transitions only; `tabular-nums` for all prices
 
 ## Repo
 - Private GitHub repo: WildJesus/srealitky-universes (separate from llm-lab monorepo)

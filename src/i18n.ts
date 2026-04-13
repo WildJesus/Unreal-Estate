@@ -64,49 +64,12 @@ const T = {
     widgetNoData:       'žádná data',
 
     // ── Info popup — static chrome ─────────────────────────────────────────────
-    popupTitle:         'Jak jsme to vypočítali',
+    popupTitle:         'Jak se to počítá?',
     popupClose:         'Zavřít',
-    popupDataSummary:   'Zdrojová data ▸',
-
-    // ── Info popup — walkthrough content ──────────────────────────────────────
-    ppEstimatedRegion:  '⚡ Region nebyl rozpoznán — používáme data pro Prahu',
-    ppStep1Head:        '1. Dnešní zatížení hypotékou',
-    ppStep1Payment:     (price: string, rate: string, payment: string) =>
-                          `Splátka dnes: ${price}, 10% akontace, sazba ${rate}% → ${payment}/měs`,
-    ppStep1Income:      (region: string, year: number, income: string) =>
-                          `Čistý příjem domácnosti (${region}, ${year}): ~${income}/měs`,
-    ppBurdenFormula:    'Zatížení',
-    ppStep2Head:        (year: number) => `Co to bylo v roce ${year}`,
-    ppStep2Growth:      (region: string, year: number, pct: string, histPrice: string) =>
-                          `Ceny v ${region} vzrostly od ${year} o ${pct}% → odhadovaná cena tehdy: ${histPrice}`,
-    ppStep2Payment:     (histPrice: string, rate: string, payment: string) =>
-                          `Splátka tehdy: ${histPrice}, 10% akontace, sazba ${rate}% → ${payment}/měs`,
-    ppWidgetMortRef:    (arrow: string, pct: string) => `widget Splátka ${arrow}${pct}%`,
-    ppStep2Income:      (region: string, year: number, income: string) =>
-                          `Čistý příjem domácnosti (${region}, ${year}): ~${income}/měs`,
-    ppWidgetBurdenRef:  (burden: string) => `widget Zatížení ${burden}`,
-    ppStep3Head:        'Co by to muselo stát dnes',
-    ppStep3Body:        (burden: string) =>
-                          `Pro zatížení ${burden} při dnešních sazbách a příjmech:`,
-    ppWidgetPriceRef:   (arrow: string, pct: string) => `widget ${arrow}${pct}%`,
-    ppResult:           (mult: string, year: number) =>
-                          `Dnes je bydlení ${mult} náročnější než v roce ${year}.`,
-    ppWidgetLabel:      'Výsledek ve widgetu:',
-    ppStep3Payment:     (equivPrice: string, rate: string, equivPayment: string) =>
-                          `Splátka: ${equivPrice}, 10% akontace, sazba ${rate}% → ${equivPayment}/měs`,
-    ppStep3Conclusion:  (equivPayment: string, currentPayment: string) =>
-                          `Místo dnešních ${currentPayment}/měs by stačilo platit ${equivPayment}/měs.`,
 
     // ── Inline widget — equiv section ─────────────────────────────────────────
     widgetEquivLabel:   'Ekvivalent',
     widgetEquivSep:     '↕ přepočet na dnešní podmínky',
-
-    // ── Data sources table ────────────────────────────────────────────────────
-    tableWageRow:       (region: string) => `Průměrná mzda (${region})`,
-    tableRateRow:       'Hypoteční sazba',
-    tablePriceIndexRow: 'Cenový index (2015=100)',
-    tableSources:       (v: string) =>
-                          `Mzdy: ČSÚ roční průměry · Sazby: Hypoindex/ČNB · Ceny: ČSÚ indexy realizovaných cen · ${v}`,
 
     // ── Extension popup labels ────────────────────────────────────────────────
     popupAutoTurnOn:     'Automaticky zapnout',
@@ -166,49 +129,12 @@ const T = {
     widgetNoData:       'no data',
 
     // ── Info popup — static chrome ─────────────────────────────────────────────
-    popupTitle:         'How we calculated this',
+    popupTitle:         'How is it calculated?',
     popupClose:         'Close',
-    popupDataSummary:   'Data sources ▸',
-
-    // ── Info popup — walkthrough content ──────────────────────────────────────
-    ppEstimatedRegion:  '⚡ Region not detected — using Praha data',
-    ppStep1Head:        '1. Today\'s mortgage burden',
-    ppStep1Payment:     (price: string, rate: string, payment: string) =>
-                          `Payment today: ${price}, 10% down, rate ${rate}% → ${payment}/month`,
-    ppStep1Income:      (region: string, year: number, income: string) =>
-                          `Household net income (${region}, ${year}): ~${income}/month`,
-    ppBurdenFormula:    'Burden',
-    ppStep2Head:        (year: number) => `What it was in ${year}`,
-    ppStep2Growth:      (region: string, year: number, pct: string, histPrice: string) =>
-                          `Prices in ${region} grew ${pct}% since ${year} → estimated price back then: ${histPrice}`,
-    ppStep2Payment:     (histPrice: string, rate: string, payment: string) =>
-                          `Payment then: ${histPrice}, 10% down, rate ${rate}% → ${payment}/month`,
-    ppWidgetMortRef:    (arrow: string, pct: string) => `widget Mortgage ${arrow}${pct}%`,
-    ppStep2Income:      (region: string, year: number, income: string) =>
-                          `Household net income (${region}, ${year}): ~${income}/month`,
-    ppWidgetBurdenRef:  (burden: string) => `widget Burden ${burden}`,
-    ppStep3Head:        'What it would need to cost today',
-    ppStep3Body:        (burden: string) =>
-                          `For ${burden} burden at today\'s rates and income:`,
-    ppWidgetPriceRef:   (arrow: string, pct: string) => `widget ${arrow}${pct}%`,
-    ppResult:           (mult: string, year: number) =>
-                          `Housing is ${mult} more burdensome today than in ${year}.`,
-    ppWidgetLabel:      'Result in the widget:',
-    ppStep3Payment:     (equivPrice: string, rate: string, equivPayment: string) =>
-                          `Payment: ${equivPrice}, 10% down, rate ${rate}% → ${equivPayment}/month`,
-    ppStep3Conclusion:  (equivPayment: string, currentPayment: string) =>
-                          `Instead of today's ${currentPayment}/month, you'd pay ${equivPayment}/month.`,
 
     // ── Inline widget — equiv section ─────────────────────────────────────────
     widgetEquivLabel:   'Equivalent',
     widgetEquivSep:     '↕ recalculated to today\'s terms',
-
-    // ── Data sources table ────────────────────────────────────────────────────
-    tableWageRow:       (region: string) => `Average wage (${region})`,
-    tableRateRow:       'Mortgage rate',
-    tablePriceIndexRow: 'Price index (2015=100)',
-    tableSources:       (v: string) =>
-                          `Wages: ČSÚ annual averages · Rates: Hypoindex/ČNB · Prices: ČSÚ realized price indices · ${v}`,
 
     // ── Extension popup labels ────────────────────────────────────────────────
     popupAutoTurnOn:     'Auto turn on',

@@ -9,14 +9,19 @@ import {
   parseCzechPrice,
 } from "./universes/calc";
 import { getCurrentYearData, getRegionalData, getAvailableYears, DATA_VERSION } from "./universes/data";
-import { t, setLang, type Lang } from "./i18n";
+import { t, setLang, getLang, type Lang } from "./i18n";
 
 // Snapshot of current-year economic data. Evaluated once at module load — the
 // page doesn't live long enough for this to become stale.
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.11";
+const VERSION = "1.0.0";
+
+// Feature flag: city comparison is not yet fully implemented — hidden until ready.
+const CITY_FEATURE_ENABLED = false;
+// Feature flag: debugger is a dev tool — hidden in production builds.
+const DEBUGGER_FEATURE_ENABLED = false;
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -36,8 +41,44 @@ const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
   'moravskoslezsky':  'Moravskoslezský kraj',
 };
 
+// Locative case (6. pád) for Czech story: "v Praze", "v Jihomoravském kraji" etc.
+const REGION_DISPLAY_NAMES_LOCATIVE: Record<CzechRegion, string> = {
+  'praha':            'Praze',
+  'stredocesky':      'Středočeském kraji',
+  'jihocesky':        'Jihočeském kraji',
+  'plzensky':         'Plzeňském kraji',
+  'karlovarsky':      'Karlovarském kraji',
+  'ustecky':          'Ústeckém kraji',
+  'liberecky':        'Libereckém kraji',
+  'kralovehradecky':  'Královéhradeckém kraji',
+  'pardubicky':       'Pardubickém kraji',
+  'vysocina':         'Kraji Vysočina',
+  'jihomoravsky':     'Jihomoravském kraji',
+  'olomoucky':        'Olomouckém kraji',
+  'zlinsky':          'Zlínském kraji',
+  'moravskoslezsky':  'Moravskoslezském kraji',
+};
+
+// English region names for the English story narrative.
+const REGION_DISPLAY_NAMES_EN: Record<CzechRegion, string> = {
+  'praha':            'Prague',
+  'stredocesky':      'Central Bohemia',
+  'jihocesky':        'South Bohemia',
+  'plzensky':         'Plzeň Region',
+  'karlovarsky':      'Karlovy Vary Region',
+  'ustecky':          'Ústí nad Labem Region',
+  'liberecky':        'Liberec Region',
+  'kralovehradecky':  'Hradec Králové Region',
+  'pardubicky':       'Pardubice Region',
+  'vysocina':         'Vysočina Region',
+  'jihomoravsky':     'South Moravia',
+  'olomoucky':        'Olomouc Region',
+  'zlinsky':          'Zlín Region',
+  'moravskoslezsky':  'Moravia-Silesia',
+};
+
 // Context object stored per ⓘ button — carries everything needed to render
-// the full Czech walkthrough popup without re-computing anything.
+// the full story popup without re-computing anything.
 interface PopupCtx {
   c:           BurdenComparison;
   region:      CzechRegion;
@@ -197,6 +238,71 @@ let mainOverlayEl: HTMLElement | null = null;
 let mainVisible = false;
 let debugOverlayEl: HTMLElement | null = null;
 let debugVisible = false;
+let aboutOverlayEl: HTMLElement | null = null;
+
+// Shared MutationObserver — forward-declared so DOM-modifying functions can
+// temporarily pause it to break the observer↔render feedback loop.
+let observer: MutationObserver;
+
+// Track pending close-animation timeout so showInfoPopup can cancel it on
+// immediate re-open (prevents stale setTimeout from hiding a just-shown popup).
+let _hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Latest PopupCtx from any rendered widget or detail-page comparison, used by
+// the main overlay ⓘ button which isn't tied to a specific listing element.
+let latestPopupCtx: PopupCtx | null = null;
+
+// Whether the user has ever clicked a ⓘ button. Loaded once from storage on
+// script init; used to gate the first-render pulse animation on detail pages.
+let infoIconSeen = false;
+chrome.storage.local.get({ infoIconSeen: false }, (r) => {
+  infoIconSeen = r.infoIconSeen as boolean;
+});
+// ── Info-icon pulse sequence ──────────────────────────────────────────────────
+// Drives a repeating animation on the first detail-page ⓘ button until the
+// user opens the popup. Each "run" re-triggers the CSS animation once by
+// removing + re-adding the class (with a forced reflow in between).
+//
+// Schedule: 5 s initial → 3 × 10 s → 20 s forever (resets per URL).
+//
+// The button is located by ID ('su-pulse-target') rather than a captured
+// reference so the timer always acts on the current DOM node after re-renders.
+let infoPulseHref     = '';
+let infoPulseTimer: ReturnType<typeof setTimeout> | null = null;
+let infoPulseRunCount = 0;
+// True during the 3 s animation window. When a re-render interrupts a running
+// animation by replacing the button, the render loop re-attaches the class.
+let infoPulseActive   = false;
+
+function triggerPulse() {
+  if (infoIconSeen || location.href !== infoPulseHref) return;
+  const btn = document.getElementById('su-pulse-target');
+  if (!btn) return;
+
+  // Remove → force reflow → re-add to restart a single CSS animation cycle.
+  btn.classList.remove('su-info-pulse');
+  void btn.offsetWidth;
+  btn.classList.add('su-info-pulse');
+  infoPulseActive   = true;
+  infoPulseRunCount++;
+
+  // Clear the active flag after the animation completes (3 s + small buffer).
+  setTimeout(() => { infoPulseActive = false; }, 3_200);
+
+  // 3 runs at 10 s, then 20 s indefinitely.
+  const nextDelay = infoPulseRunCount <= 3 ? 10_000 : 20_000;
+  infoPulseTimer = setTimeout(triggerPulse, nextDelay);
+}
+
+function startPulseSequence() {
+  infoPulseTimer = setTimeout(triggerPulse, 5_000);
+}
+
+function cancelPulseSequence() {
+  if (infoPulseTimer !== null) { clearTimeout(infoPulseTimer); infoPulseTimer = null; }
+  infoPulseRunCount = 0;
+  infoPulseActive   = false;
+}
 
 // ── Comparison state ──────────────────────────────────────────────────────────
 // activeYear is set by the year picker in the main overlay and read by all
@@ -234,10 +340,11 @@ function applyHighlights() {
   removeHighlights();
   // Refresh location on every highlight pass (covers SPA navigation).
   detectedLocation = isDetailPage() ? extractLocationFromDetail(document) : null;
-  // Exclude both overlay panels so their price text doesn't get highlighted.
+  // Exclude all our overlay/popup panels so their price text doesn't get highlighted.
   const overlayExclusions: Element[] = [];
-  if (mainOverlayEl) overlayExclusions.push(mainOverlayEl);
+  if (mainOverlayEl)  overlayExclusions.push(mainOverlayEl);
   if (debugOverlayEl) overlayExclusions.push(debugOverlayEl);
+  if (infoPopupEl)    overlayExclusions.push(infoPopupEl);
 
   if (isDetailPage()) {
     const mc = getMortgageContainers();
@@ -269,7 +376,10 @@ function applyHighlights() {
 function removeHighlights() {
   for (const el of highlightedEls) el.classList.remove(HIGHLIGHT_CLASS);
   highlightedEls = [];
-  clearListingComparisons();
+  // Keep widgets in DOM during active pulse — clearing them mid-animation
+  // causes the 3 s disappear/reappear. renderListingComparisons() early-returns
+  // too, so no duplicate widgets are created. Normal clearing resumes after.
+  if (!infoPulseActive) clearListingComparisons();
 }
 
 // ─── Shared CSS snippet ───────────────────────────────────────────────────────
@@ -546,6 +656,14 @@ function buildMainOverlay(): HTMLElement {
       transition: color 0.15s; font-family: inherit; border-radius: 4px;
     }
     .su-mo-btn:hover { color: #111111; }
+    /* ⓘ button in overlay header / mini bar */
+    .su-mo-info-btn {
+      background: none; border: none; cursor: pointer;
+      padding: 2px 4px; line-height: 0; flex-shrink: 0;
+      opacity: 0.45; transition: opacity 0.15s;
+    }
+    .su-mo-info-btn:hover { opacity: 1; }
+    .su-mo-info-btn svg path { fill: #555555 !important; }
 
     /* ── Minimized bar ── */
     #su-mo-mini {
@@ -718,6 +836,11 @@ function buildMainOverlay(): HTMLElement {
       <div id="su-mo-title-wrap">
         <span id="su-mo-name">Srealitky Universes</span>
         <span id="su-mo-version">v${VERSION}</span>
+        <button class="su-mo-info-btn" id="su-mo-header-info" title="${t('widgetInfoTooltip')}">
+          <svg width="18" height="18" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#555555" fill-rule="nonzero" d="M256 0c70.691 0 134.695 28.656 181.021 74.979C483.344 121.305 512 185.309 512 256c0 70.691-28.656 134.695-74.979 181.018C390.695 483.344 326.691 512 256 512c-70.691 0-134.695-28.656-181.018-74.982C28.656 390.695 0 326.691 0 256S28.656 121.305 74.982 74.979C121.305 28.656 185.309 0 256 0zm-10.029 160.379c0-4.319.761-8.315 2.282-11.988 1.515-3.66 3.797-6.994 6.836-9.98 3.028-2.98 6.341-5.241 9.916-6.758 3.593-1.511 7.463-2.282 11.603-2.282 4.143 0 8.006.771 11.564 2.278 3.561 1.521 6.828 3.782 9.808 6.779 2.976 2.987 5.212 6.31 6.695 9.973 1.489 3.663 2.236 7.659 2.236 11.978 0 4.195-.739 8.128-2.229 11.767-1.483 3.631-3.709 6.993-6.692 10.046-2.965 3.043-6.232 5.342-9.79 6.878-3.569 1.528-7.432 2.306-11.592 2.306-4.259 0-8.206-.764-11.834-2.278-3.604-1.522-6.913-3.807-9.892-6.832-2.973-3.046-5.209-6.383-6.685-10.032-1.486-3.646-2.226-7.596-2.226-11.855zm13.492 179.381c-1.118 4.002-3.375 11.837 3.316 11.837 1.451 0 3.299-.81 5.5-2.412 2.387-1.721 5.125-4.336 8.192-7.799 3.116-3.53 6.362-7.701 9.731-12.507 3.358-4.795 6.888-10.292 10.561-16.419a1.39 1.39 0 011.907-.484l12.451 9.237c.593.434.729 1.262.34 1.878-5.724 9.952-11.512 18.642-17.362 26.056-5.899 7.466-11.879 13.66-17.936 18.553l-.095.07c-6.057 4.908-12.269 8.602-18.634 11.077-17.713 6.86-45.682 5.742-53.691-14.929-5.062-13.054-.897-27.885 3.085-40.651l20.089-60.852c1.286-4.617 2.912-9.682 3.505-14.439.974-7.915-2.52-13.032-11.147-13.032h-17.562a1.402 1.402 0 01-1.395-1.399l.077-.484 4.617-16.801a1.39 1.39 0 011.356-1.02l89.743-2.815a1.39 1.39 0 011.434 1.34l-.063.445-38.019 125.55zm151.324-238.547C371.178 61.606 316.446 37.101 256 37.101c-60.446 0-115.174 24.501-154.784 64.112C61.606 140.822 37.101 195.554 37.101 256c0 60.446 24.505 115.178 64.115 154.784 39.606 39.61 94.338 64.115 154.784 64.115s115.178-24.505 154.787-64.115c39.611-39.61 64.112-94.338 64.112-154.784s-24.505-115.178-64.112-154.787z"/>
+          </svg>
+        </button>
       </div>
       <div id="su-mo-controls">
         <button class="su-mo-btn" id="su-mo-minimize" title="${t('moMinimize')}">─</button>
@@ -728,6 +851,11 @@ function buildMainOverlay(): HTMLElement {
     <div id="su-mo-mini">
       <span id="su-mo-mini-label">Srealitky Universes</span>
       <span id="su-mo-mini-filters"></span>
+      <button class="su-mo-info-btn" id="su-mo-mini-info" title="${t('widgetInfoTooltip')}">
+        <svg width="18" height="18" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#555555" fill-rule="nonzero" d="M256 0c70.691 0 134.695 28.656 181.021 74.979C483.344 121.305 512 185.309 512 256c0 70.691-28.656 134.695-74.979 181.018C390.695 483.344 326.691 512 256 512c-70.691 0-134.695-28.656-181.018-74.982C28.656 390.695 0 326.691 0 256S28.656 121.305 74.982 74.979C121.305 28.656 185.309 0 256 0zm-10.029 160.379c0-4.319.761-8.315 2.282-11.988 1.515-3.66 3.797-6.994 6.836-9.98 3.028-2.98 6.341-5.241 9.916-6.758 3.593-1.511 7.463-2.282 11.603-2.282 4.143 0 8.006.771 11.564 2.278 3.561 1.521 6.828 3.782 9.808 6.779 2.976 2.987 5.212 6.31 6.695 9.973 1.489 3.663 2.236 7.659 2.236 11.978 0 4.195-.739 8.128-2.229 11.767-1.483 3.631-3.709 6.993-6.692 10.046-2.965 3.043-6.232 5.342-9.79 6.878-3.569 1.528-7.432 2.306-11.592 2.306-4.259 0-8.206-.764-11.834-2.278-3.604-1.522-6.913-3.807-9.892-6.832-2.973-3.046-5.209-6.383-6.685-10.032-1.486-3.646-2.226-7.596-2.226-11.855zm13.492 179.381c-1.118 4.002-3.375 11.837 3.316 11.837 1.451 0 3.299-.81 5.5-2.412 2.387-1.721 5.125-4.336 8.192-7.799 3.116-3.53 6.362-7.701 9.731-12.507 3.358-4.795 6.888-10.292 10.561-16.419a1.39 1.39 0 011.907-.484l12.451 9.237c.593.434.729 1.262.34 1.878-5.724 9.952-11.512 18.642-17.362 26.056-5.899 7.466-11.879 13.66-17.936 18.553l-.095.07c-6.057 4.908-12.269 8.602-18.634 11.077-17.713 6.86-45.682 5.742-53.691-14.929-5.062-13.054-.897-27.885 3.085-40.651l20.089-60.852c1.286-4.617 2.912-9.682 3.505-14.439.974-7.915-2.52-13.032-11.147-13.032h-17.562a1.402 1.402 0 01-1.395-1.399l.077-.484 4.617-16.801a1.39 1.39 0 011.356-1.02l89.743-2.815a1.39 1.39 0 011.434 1.34l-.063.445-38.019 125.55zm151.324-238.547C371.178 61.606 316.446 37.101 256 37.101c-60.446 0-115.174 24.501-154.784 64.112C61.606 140.822 37.101 195.554 37.101 256c0 60.446 24.505 115.178 64.115 154.784 39.606 39.61 94.338 64.115 154.784 64.115s115.178-24.505 154.787-64.115c39.611-39.61 64.112-94.338 64.112-154.784s-24.505-115.178-64.112-154.787z"/>
+        </svg>
+      </button>
       <div id="su-mo-mini-controls">
         <button class="su-mo-btn" id="su-mo-unminimize" title="${t('moExpand')}">▭</button>
         <button class="su-mo-btn" id="su-mo-mini-close" title="${t('moClose')}">✕</button>
@@ -757,7 +885,7 @@ function buildMainOverlay(): HTMLElement {
         </div>
       </div>
 
-      <div class="su-mo-section su-disabled" id="su-mo-city-section">
+      <div class="su-mo-section su-disabled" id="su-mo-city-section"${!CITY_FEATURE_ENABLED ? ' style="display:none"' : ''}>
         <div class="su-mo-section-head">
           <input type="checkbox" class="su-mo-chk" id="su-mo-city-chk" />
           <span class="su-mo-section-title">${t('moCitySection')}</span>
@@ -847,10 +975,12 @@ function buildMainOverlay(): HTMLElement {
     }
   });
 
-  cityChk.addEventListener("change", () => {
-    citySection.classList.toggle("su-disabled", !cityChk.checked);
-    updateMiniFilters();
-  });
+  if (CITY_FEATURE_ENABLED) {
+    cityChk.addEventListener("change", () => {
+      citySection.classList.toggle("su-disabled", !cityChk.checked);
+      updateMiniFilters();
+    });
+  }
 
   // Slider fires selectYear immediately — no confirm step needed.
   yearSlider.addEventListener("input", () => {
@@ -883,6 +1013,15 @@ function buildMainOverlay(): HTMLElement {
   });
   el.querySelector("#su-mo-close")!.addEventListener("click", hideMainOverlay);
   el.querySelector("#su-mo-mini-close")!.addEventListener("click", hideMainOverlay);
+
+  // ⓘ buttons — show the info popup using the most-recently-rendered widget context.
+  function openOverlayInfoPopup(e: MouseEvent) {
+    e.stopPropagation();
+    if (!latestPopupCtx) return;
+    showInfoPopup(e.currentTarget as HTMLElement, latestPopupCtx);
+  }
+  el.querySelector("#su-mo-header-info")!.addEventListener("click", openOverlayInfoPopup);
+  el.querySelector("#su-mo-mini-info")!.addEventListener("click", openOverlayInfoPopup);
 
   // Restore selected year if one was active before a rebuild (e.g. language switch).
   if (activeYear !== null) {
@@ -1029,24 +1168,39 @@ function ensureComparisonCSS() {
       pointer-events: auto !important;
     }
     .su-cw-info svg { pointer-events: none !important; }
-    .su-cw-info svg circle, .su-cw-info svg line { stroke: #bbbbbb !important; }
-    .su-cw-info svg circle[fill] { fill: #bbbbbb !important; }
-    .su-cw-info:hover svg circle, .su-cw-info:hover svg line { stroke: #555555 !important; }
-    .su-cw-info:hover svg circle[fill] { fill: #555555 !important; }
+    .su-cw-info:not(.su-info-pulse) svg path { fill: #bbbbbb !important; }
+    .su-cw-info:not(.su-info-pulse):hover svg path { fill: #777777 !important; }
+    @keyframes su-info-pulse-glow {
+      0%, 100% { filter: none; }
+      50%       { filter: drop-shadow(0 0 5px rgba(220,38,38,0.85)); }
+    }
+    @keyframes su-info-pulse-fill {
+      0%, 100% { fill: #bbbbbb; }
+      50%       { fill: #dc2626; }
+    }
+    .su-cw-info.su-info-pulse {
+      animation: su-info-pulse-glow 3s ease-in-out 1;
+      opacity: 1 !important;
+    }
+    .su-cw-info.su-info-pulse svg path {
+      animation: su-info-pulse-fill 3s ease-in-out 1;
+    }
 
     /* ── Info popup ── */
     #su-info-popup {
       position: fixed;
-      width: 550px;
+      width: 440px;
       max-width: 96vw;
+      max-height: 80vh;
+      overflow-y: auto;
       background: #ffffff;
       border: 1px solid rgba(0,0,0,0.12);
       border-radius: 10px;
       color: #111111;
       font-family: 'Quicksand', system-ui, sans-serif;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      line-height: 1.6;
+      line-height: 1.65;
       z-index: 2147483647;
       box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.07);
       transform-origin: top right;
@@ -1054,12 +1208,16 @@ function ensureComparisonCSS() {
     }
     #su-info-popup.su-popup-hidden { display: none; }
     @keyframes su-popup-in {
-      from { opacity: 0; transform: scale(0.95); }
-      to   { opacity: 1; transform: scale(1); }
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes su-popup-out {
+      from { opacity: 1; }
+      to   { opacity: 0; }
     }
     #su-popup-header {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 12px 9px;
+      padding: 10px 14px 9px;
       border-bottom: 1px solid rgba(0,0,0,0.08);
       cursor: grab; user-select: none;
     }
@@ -1071,96 +1229,54 @@ function ensureComparisonCSS() {
     #su-popup-close {
       background: none; border: none; color: #aaaaaa; cursor: pointer;
       font-size: 15px; line-height: 1; padding: 0 0 0 10px;
-      transition: color 0.15s; font-family: inherit;
+      transition: color 0.15s; font-family: inherit; flex-shrink: 0;
+      pointer-events: auto !important;
     }
     #su-popup-close:hover { color: #111111; }
     #su-popup-body { padding: 12px 14px; }
-    .su-pp-listing {
-      font-size: 14px; font-weight: 700; color: #111111; margin-bottom: 12px;
-      display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px;
+    .su-pp-story-p {
+      margin-bottom: 14px; color: #333333; font-size: 13px; font-weight: 600; line-height: 1.7;
     }
-    .su-pp-listing-hist {
-      font-size: 14px; font-weight: 700; color: #111111;
+    .su-pp-num-hero {
+      color: #dc2626 !important; font-weight: 700 !important; font-size: 15px !important;
+      white-space: nowrap !important;
     }
-    .su-pp-listing-region { font-size: 13px; font-weight: 600; color: #777777; }
-    .su-pp-step { margin-bottom: 13px; }
-    .su-pp-step-head {
-      font-size: 14px; font-weight: 700; color: #111111; margin-bottom: 5px;
+    .su-pp-num-support {
+      color: #111111 !important; font-weight: 700 !important;
+      white-space: nowrap !important;
     }
-    .su-pp-step-body {
-      font-size: 14px; font-weight: 600; color: #222222; line-height: 1.65;
+    .su-pp-climax {
+      margin: 18px 0 14px; color: #333333; font-size: 13px; font-weight: 600;
     }
-    .su-pp-step-note {
-      font-size: 12px; font-style: italic; color: #777777;
+    .su-pp-climax-muted { color: #777777; font-weight: 600; }
+    .su-pp-climax-burden {
+      color: #dc2626 !important; font-weight: 700 !important; font-size: 16px !important;
+      white-space: nowrap !important;
     }
-    .su-pp-em { color: #dc2626; font-weight: 700; white-space: nowrap; }
-    .su-pp-formula {
-      font-family: 'Quicksand', monospace; font-weight: 700; font-size: 13px;
-      background: rgba(0,0,0,0.04); border-radius: 5px;
-      padding: 5px 9px; margin: 4px 0; display: block;
-      color: #111111; line-height: 1.5;
+    .su-pp-punchline {
+      border-left: 3px solid #dc2626;
+      padding-left: 12px;
+      margin: 4px 0 14px;
+      color: #333333; font-size: 13px; font-weight: 600;
     }
-    .su-pp-widget-ref {
-      display: inline-block; font-size: 11px; font-weight: 700;
-      color: #888888; background: rgba(0,0,0,0.06);
-      border-radius: 4px; padding: 1px 5px; margin-left: 4px;
-      letter-spacing: 0.02em; vertical-align: middle;
+    .su-pp-punchline-price {
+      color: #dc2626 !important; font-weight: 700 !important; font-size: 16px !important;
+      white-space: nowrap !important;
     }
-    .su-pp-result {
-      margin-top: 12px; padding: 9px 12px;
-      background: rgba(220,38,38,0.05);
-      border: 1px solid rgba(220,38,38,0.20);
-      border-radius: 7px;
-      font-size: 14px; font-weight: 700; color: #111111; text-align: center;
+    .su-pp-region-warn {
+      font-size: 11px; font-style: italic; color: #aaaaaa; margin-bottom: 12px;
     }
-    .su-pp-warn {
-      font-size: 12px; font-style: italic; color: #aaaaaa;
-      margin-bottom: 10px;
-    }
-    .su-pp-widget-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #aaaaaa; margin-top: 14px; margin-bottom: 6px;
+    .su-pp-sources-line {
+      display: block; font-size: 10px; color: #aaaaaa;
+      margin-top: 16px; padding-top: 10px;
+      border-top: 1px solid rgba(0,0,0,0.08);
     }
     .su-pp-widget-preview {
       display: flex; flex-direction: column; gap: 4px;
       padding: 7px 12px 7px 10px;
-      background: #f7f7f7;
+      background: rgba(0,0,0,0.03);
       border-left: 3px solid #dc2626;
       border-radius: 0 8px 8px 0;
-    }
-    #su-popup-data {
-      border-top: 1px solid rgba(0,0,0,0.07);
-      padding: 0;
-    }
-    #su-popup-data summary {
-      padding: 8px 14px;
-      font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
-      color: #aaaaaa; cursor: pointer; list-style: none;
-      transition: color 0.15s;
-    }
-    #su-popup-data summary::-webkit-details-marker { display: none; }
-    #su-popup-data[open] summary { color: #555555; }
-    #su-popup-data summary:hover { color: #555555; }
-    .su-pp-table {
-      width: 100%; border-collapse: collapse;
-      margin: 0 0 10px; font-size: 12px;
-    }
-    .su-pp-table th {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-      text-transform: uppercase; color: #aaaaaa;
-      text-align: right; padding: 3px 14px 5px;
-    }
-    .su-pp-table th:first-child { text-align: left; }
-    .su-pp-table td {
-      padding: 3px 14px; color: #555555;
-      text-align: right; font-variant-numeric: tabular-nums;
-      border-top: 1px solid rgba(0,0,0,0.05);
-    }
-    .su-pp-table td:first-child { text-align: left; }
-    .su-pp-table td.su-pp-td-em { color: #dc2626; font-weight: 700; }
-    .su-pp-sources {
-      padding: 0 14px 10px;
-      font-size: 11px; color: #aaaaaa; line-height: 1.5;
     }
   `;
   document.head.appendChild(style);
@@ -1224,171 +1340,94 @@ function buildInfoPopup(): HTMLElement {
       <button id="su-popup-close" title="${t('popupClose')}">✕</button>
     </div>
     <div id="su-popup-body"></div>
-    <details id="su-popup-data">
-      <summary>${t('popupDataSummary')}</summary>
-      <div id="su-popup-table-wrap"></div>
-      <p class="su-pp-sources" id="su-popup-sources"></p>
-    </details>
   `;
   el.querySelector('#su-popup-close')!.addEventListener('click', (e) => {
     e.stopPropagation();
     hideInfoPopup();
   });
   makePopupDraggable(el, el.querySelector('#su-popup-header')!);
+  // Pause observer so appending the popup doesn't trigger a widget re-render loop.
+  observer?.disconnect();
   document.body.appendChild(el);
+  observer?.observe(document.body, { childList: true, subtree: true });
   return el;
 }
 
 function renderPopupContent(ctx: PopupCtx): void {
   const popup = infoPopupEl!;
-  const { c, region, isEstimated, nowIndex, histIndex, nowWage, histWage } = ctx;
+  const { c, region, isEstimated, nowIndex, histIndex } = ctx;
+  const lang = getLang();
 
-  const regionName  = REGION_DISPLAY_NAMES[region];
-  const priceRatioN = nowIndex / histIndex;
-  const priceRatioStr    = priceRatioN.toFixed(2);
-  const priceGrowthPct   = ((priceRatioN - 1) * 100).toFixed(0);
-  const histRatePct      = (c.historicalRate * 100).toFixed(2);
-  const nowRatePct       = (c.currentRate    * 100).toFixed(2);
+  // Region name in the correct form for the active language
+  const displayRegion = lang === 'cs'
+    ? REGION_DISPLAY_NAMES_LOCATIVE[region]
+    : REGION_DISPLAY_NAMES_EN[region];
 
-  // ── Derived deltas for the widget preview and walkthrough ────────────────
-  // Section 2 (historical): hist price/payment vs. current
-  const histPriceDeltaPct  = ((c.historicalPrice           - c.currentPrice)            / c.currentPrice)            * 100;
-  const histPayDeltaPct    = ((c.historicalMonthlyPayment  - c.currentMonthlyPayment)   / c.currentMonthlyPayment)   * 100;
-  // Section 3 (equiv): burden-equivalent price/payment vs. current
-  const equivPriceDeltaPct = ((c.burdenEquivalentPrice     - c.currentPrice)            / c.currentPrice)            * 100;
+  // Derived display values
+  const priceGrowthPct = Math.round((nowIndex / histIndex - 1) * 100);
+  const currentRatePct = (c.currentRate    * 100).toFixed(2);
+  const histRatePct    = (c.historicalRate * 100).toFixed(2);
+  const moreBurdensome = c.stressMultiplier >= 1.0;
 
-  // ── Body: step-by-step walkthrough ────────────────────────────────────────
+  // ── Inline styling helpers ────────────────────────────────────────────────
+  // !important guards against sreality's card :hover CSS fighting our styles.
+  const hero       = (v: string) => `<span class="su-pp-num-hero">${v}</span>`;
+  const supp       = (v: string) => `<span class="su-pp-num-support">${v}</span>`;
+  const muted      = (v: string) => `<span class="su-pp-climax-muted">${v}</span>`;
+  const burden     = (v: string) => `<span class="su-pp-climax-burden">${v}</span>`;
+  const punchPrice = (v: string) => `<span class="su-pp-punchline-price">${v}</span>`;
+
+  // ── Story narrative ───────────────────────────────────────────────────────
+  let storyHtml: string;
+
+  if (lang === 'cs') {
+    const climaxLine = moreBurdensome
+      ? `${muted('Z')} ${burden(formatBurdenPercent(c.historicalBurdenRatio))} ${muted('na')} ${burden(formatBurdenPercent(c.currentBurdenRatio))}. Bydlení je dnes ${hero(formatMultiplier(c.stressMultiplier))} náročnější než v roce ${c.comparisonYear}.`
+      : `${muted('Z')} ${burden(formatBurdenPercent(c.historicalBurdenRatio))} ${muted('na')} ${burden(formatBurdenPercent(c.currentBurdenRatio))}. Bydlení je dnes mírně dostupnější než v roce ${c.comparisonYear}.`;
+
+    storyHtml = `
+      ${isEstimated ? `<p class="su-pp-region-warn">Region nebyl rozpoznán — počítáme s daty pro Prahu</p>` : ''}
+      <p class="su-pp-story-p">
+        Představte si mladý pár v ${displayRegion}. Oba vydělávají průměrnou mzdu — dohromady si čistě přinesou domů asi ${supp(formatCZK(c.currentHouseholdNetIncome))} měsíčně.
+      </p>
+      <p class="su-pp-story-p">
+        Chtějí si koupit tento byt za ${supp(formatCZK(c.currentPrice))}. Mají naspořeno na 10% zálohu, zbytek řeší hypotékou na 30 let se sazbou ${supp(currentRatePct + '%')}. Měsíční splátka: ${hero(formatCZK(c.currentMonthlyPayment))} — tedy ${hero(formatBurdenPercent(c.currentBurdenRatio))} jejich příjmu.
+      </p>
+      <p class="su-pp-story-p">
+        Teď si představte stejný pár v roce ${c.comparisonYear}. Oba taky vydělávají průměrnou mzdu té doby — čistě dohromady ${supp(formatCZK(c.historicalHouseholdNetIncome))}. Stejný byt by je tehdy stál asi ${supp(formatCZK(c.historicalPrice))} (ceny nemovitostí v ${displayRegion} od té doby vzrostly o ${priceGrowthPct}%). Hypotéka se sazbou ${supp(histRatePct + '%')} by je vyšla na ${supp(formatCZK(c.historicalMonthlyPayment))} měsíčně — to je ${hero(formatBurdenPercent(c.historicalBurdenRatio))} jejich příjmu.
+      </p>
+      <p class="su-pp-climax">${climaxLine}</p>
+      <p class="su-pp-punchline">
+        Aby dnešní pár platil stejný podíl příjmu jako ten v ${c.comparisonYear}, musel by byt stát ${punchPrice(formatCZK(c.burdenEquivalentPrice))} místo ${supp(formatCZK(c.currentPrice))}.
+      </p>
+      <span class="su-pp-sources-line">Mzdy: ČSÚ · Sazby: Hypoindex/ČNB · Ceny: ČSÚ realizované transakce · v2026-04</span>
+    `;
+  } else {
+    const climaxLine = moreBurdensome
+      ? `${muted('From')} ${burden(formatBurdenPercent(c.historicalBurdenRatio))} ${muted('to')} ${burden(formatBurdenPercent(c.currentBurdenRatio))}. Housing today is ${hero(formatMultiplier(c.stressMultiplier))} more burdensome than in ${c.comparisonYear}.`
+      : `${muted('From')} ${burden(formatBurdenPercent(c.historicalBurdenRatio))} ${muted('to')} ${burden(formatBurdenPercent(c.currentBurdenRatio))}. Housing today is slightly more affordable than in ${c.comparisonYear}.`;
+
+    storyHtml = `
+      ${isEstimated ? `<p class="su-pp-region-warn">Region not detected — using Prague data</p>` : ''}
+      <p class="su-pp-story-p">
+        Imagine a young couple in ${displayRegion}. Both earn average wages — together they take home about ${supp(formatCZK(c.currentHouseholdNetIncome))} per month.
+      </p>
+      <p class="su-pp-story-p">
+        They want to buy this apartment for ${supp(formatCZK(c.currentPrice))}. They have saved for a 10% down payment, financing the rest with a 30-year mortgage at ${supp(currentRatePct + '%')}. Monthly payment: ${hero(formatCZK(c.currentMonthlyPayment))} — that's ${hero(formatBurdenPercent(c.currentBurdenRatio))} of their income.
+      </p>
+      <p class="su-pp-story-p">
+        Now imagine the same couple in ${c.comparisonYear}. Both earn the average wage of that time — together ${supp(formatCZK(c.historicalHouseholdNetIncome))} net. The same apartment would have cost about ${supp(formatCZK(c.historicalPrice))} (property prices in ${displayRegion} have grown by ${priceGrowthPct}% since then). At a ${supp(histRatePct + '%')} rate, their mortgage would be ${supp(formatCZK(c.historicalMonthlyPayment))}/month — that's ${hero(formatBurdenPercent(c.historicalBurdenRatio))} of their income.
+      </p>
+      <p class="su-pp-climax">${climaxLine}</p>
+      <p class="su-pp-punchline">
+        For today's couple to carry the same burden as in ${c.comparisonYear}, this apartment would need to cost ${punchPrice(formatCZK(c.burdenEquivalentPrice))} instead of ${supp(formatCZK(c.currentPrice))}.
+      </p>
+      <span class="su-pp-sources-line">Wages: ČSÚ · Rates: Hypoindex/ČNB · Prices: ČSÚ realized transactions · v2026-04</span>
+    `;
+  }
+
   const body = popup.querySelector<HTMLElement>('#su-popup-body')!;
-
-  const histPayArrow       = histPayDeltaPct    <= 0 ? '↓' : '↑';
-  const absHistPayDelta    = Math.abs(histPayDeltaPct).toFixed(0);
-  const equivPriceArrow    = equivPriceDeltaPct <= 0 ? '↓' : '↑';
-  const absEquivPriceDelta = Math.abs(equivPriceDeltaPct).toFixed(0);
-
-  body.innerHTML = `
-    ${isEstimated
-      ? `<p class="su-pp-warn">${t('ppEstimatedRegion')}</p>`
-      : ''}
-    <div class="su-pp-listing">
-      <span>${formatCZK(c.currentPrice)}</span>
-      <span class="su-pp-listing-hist">→ ${formatCZK(c.burdenEquivalentPrice)}</span>
-      <span class="su-pp-listing-region">· ${regionName}</span>
-    </div>
-
-    <div class="su-pp-step">
-      <div class="su-pp-step-head">${t('ppStep1Head')}</div>
-      <div class="su-pp-step-body">
-        ${t('ppStep1Payment', formatCZK(c.currentPrice), nowRatePct, formatCZK(c.currentMonthlyPayment))}<br>
-        ${t('ppStep1Income', regionName, CURRENT.year, formatCZK(c.currentHouseholdNetIncome))}<br>
-        <code class="su-pp-formula">
-          ${t('ppBurdenFormula')} = ${formatCZK(c.currentMonthlyPayment)} ÷ ${formatCZK(c.currentHouseholdNetIncome)}
-          = <span class="su-pp-em">${formatBurdenPercent(c.currentBurdenRatio)}</span>
-        </code>
-      </div>
-    </div>
-
-    <div class="su-pp-step">
-      <div class="su-pp-step-head">${t('ppStep2Head', c.comparisonYear)}</div>
-      <div class="su-pp-step-body">
-        ${t('ppStep2Growth', regionName, c.comparisonYear, priceGrowthPct, formatCZK(c.historicalPrice))}<br>
-        ${t('ppStep2Payment', formatCZK(c.historicalPrice), histRatePct, formatCZK(c.historicalMonthlyPayment))}
-        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', histPayArrow, absHistPayDelta)}</span><br>
-        ${t('ppStep2Income', regionName, c.comparisonYear, formatCZK(c.historicalHouseholdNetIncome))}<br>
-        <code class="su-pp-formula">
-          ${t('ppBurdenFormula')} = ${formatCZK(c.historicalMonthlyPayment)} ÷ ${formatCZK(c.historicalHouseholdNetIncome)}
-          = <span class="su-pp-em">${formatBurdenPercent(c.historicalBurdenRatio)}</span>
-          <span class="su-pp-widget-ref">${t('ppWidgetBurdenRef', formatBurdenPercent(c.historicalBurdenRatio))}</span>
-        </code>
-      </div>
-    </div>
-
-    <div class="su-pp-step">
-      <div class="su-pp-step-head">${t('ppStep3Head')}</div>
-      <div class="su-pp-step-body">
-        ${t('ppStep3Body', formatBurdenPercent(c.historicalBurdenRatio))}<br>
-        <code class="su-pp-formula">
-          ${formatCZK(c.currentPrice)} × (${formatBurdenPercent(c.historicalBurdenRatio)} ÷ ${formatBurdenPercent(c.currentBurdenRatio)})
-          = <span class="su-pp-em">${formatCZK(c.burdenEquivalentPrice)}</span>
-          <span class="su-pp-widget-ref">${t('ppWidgetPriceRef', equivPriceArrow, absEquivPriceDelta)}</span>
-        </code>
-        ${t('ppStep3Payment', formatCZK(c.burdenEquivalentPrice), nowRatePct, formatCZK(c.burdenEquivalentPayment))}
-        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', equivPriceArrow, absEquivPriceDelta)}</span><br>
-        <span class="su-pp-step-note">${t('ppStep3Conclusion', formatCZK(c.burdenEquivalentPayment), formatCZK(c.currentMonthlyPayment))}</span>
-      </div>
-    </div>
-
-    <div class="su-pp-result">
-      ${t('ppResult', formatMultiplier(c.stressMultiplier), c.comparisonYear)}
-    </div>
-
-    <p class="su-pp-widget-label">${t('ppWidgetLabel')}</p>
-    <div class="su-pp-widget-preview">
-      <div class="su-cw-row">
-        <span class="su-cw-year">${CURRENT.year}</span>
-        <span class="su-cw-price">${formatCZK(c.currentPrice)}</span>
-        <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.currentBurdenRatio)})</span>
-      </div>
-      <div class="su-cw-row">
-        <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
-        <span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>
-      </div>
-      <hr class="su-cw-divider" />
-      <div class="su-cw-row">
-        <span class="su-cw-year su-cw-year-hist">${c.comparisonYear}</span>
-        ${cwDelta(histPriceDeltaPct)}
-        <span class="su-cw-price-hist">${formatCZK(c.historicalPrice)}</span>
-        <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>
-      </div>
-      <div class="su-cw-row">
-        <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
-        ${cwDelta(histPayDeltaPct)}
-        <span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>
-      </div>
-      <hr class="su-cw-divider" />
-      <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
-      <div class="su-cw-equiv-block">
-        <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
-        ${cwDelta(equivPriceDeltaPct)}
-        <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
-        <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
-        <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
-      </div>
-    </div>
-  `;
-
-  // ── Data sources table ─────────────────────────────────────────────────────
-  const tableWrap = popup.querySelector<HTMLElement>('#su-popup-table-wrap')!;
-  tableWrap.innerHTML = `
-    <table class="su-pp-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>${c.comparisonYear}</th>
-          <th>${CURRENT.year}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>${t('tableWageRow', regionName)}</td>
-          <td>${formatCZK(histWage)}</td>
-          <td class="su-pp-td-em">${formatCZK(nowWage)}</td>
-        </tr>
-        <tr>
-          <td>${t('tableRateRow')}</td>
-          <td>${histRatePct}%</td>
-          <td class="su-pp-td-em">${nowRatePct}%</td>
-        </tr>
-        <tr>
-          <td>${t('tablePriceIndexRow')}</td>
-          <td>${Math.round(histIndex)}</td>
-          <td class="su-pp-td-em">${Math.round(nowIndex)}</td>
-        </tr>
-      </tbody>
-    </table>
-  `;
-
-  const sources = popup.querySelector<HTMLElement>('#su-popup-sources')!;
-  sources.textContent = t('tableSources', DATA_VERSION);
+  body.innerHTML = storyHtml;
 }
 
 function positionPopup(anchor: HTMLElement): void {
@@ -1396,8 +1435,8 @@ function positionPopup(anchor: HTMLElement): void {
   const rect  = anchor.getBoundingClientRect();
   const vw    = window.innerWidth;
   const vh    = window.innerHeight;
-  const pW    = popup.offsetWidth  || 550;
-  const pH    = popup.offsetHeight || 400;
+  const pW    = popup.offsetWidth  || 440;
+  const pH    = popup.offsetHeight || 500;
 
   // Horizontal: open to the right of the anchor (doesn't cover the widget);
   // fall back to left side if not enough room to the right.
@@ -1425,6 +1464,8 @@ function positionPopup(anchor: HTMLElement): void {
 }
 
 function showInfoPopup(anchor: HTMLElement, ctx: PopupCtx): void {
+  // Cancel any pending close animation — user re-opened before it finished.
+  if (_hideTimer !== null) { clearTimeout(_hideTimer); _hideTimer = null; }
   ensureComparisonCSS();
   if (!infoPopupEl) infoPopupEl = buildInfoPopup();
 
@@ -1445,7 +1486,17 @@ function showInfoPopup(anchor: HTMLElement, ctx: PopupCtx): void {
 }
 
 function hideInfoPopup(): void {
-  infoPopupEl?.classList.add('su-popup-hidden');
+  if (!infoPopupEl || infoPopupEl.classList.contains('su-popup-hidden')) return;
+  if (_hideTimer !== null) { clearTimeout(_hideTimer); _hideTimer = null; }
+  infoPopupEl.style.animation = 'su-popup-out 0.1s ease-in forwards';
+  const el = infoPopupEl;
+  _hideTimer = setTimeout(() => {
+    _hideTimer = null;
+    if (el && !el.classList.contains('su-popup-hidden')) {
+      el.classList.add('su-popup-hidden');
+      el.style.animation = '';
+    }
+  }, 110);
 }
 
 // ─── Listing page comparison (inline widgets) ─────────────────────────────────
@@ -1456,6 +1507,17 @@ function clearListingComparisons() {
 }
 
 function renderListingComparisons() {
+  // Pause the MutationObserver for the entire render pass.
+  // Without this, removing old widgets + inserting new ones triggers the
+  // observer, which re-fires applyHighlights() → renderListingComparisons()
+  // 400 ms later — causing a feedback loop that also swallows the first ⓘ click.
+  observer?.disconnect();
+  try {
+  // Suppress re-renders while the ⓘ pulse animation is playing (3 s window).
+  // Destroying + recreating the button mid-animation causes visible flickering.
+  // Widget data doesn't change in 3 s so skipping is safe.
+  if (infoPulseActive) return;
+  latestPopupCtx = null;   // reset so it gets re-populated from fresh widgets below
   clearListingComparisons();
   if (activeYear === null) return;
 
@@ -1466,8 +1528,8 @@ function renderListingComparisons() {
   ensureComparisonCSS();
 
   for (const priceEl of highlightedEls) {
-    // Skip elements inside our own overlays.
-    if (mainOverlayEl?.contains(priceEl) || debugOverlayEl?.contains(priceEl)) continue;
+    // Skip elements inside our own overlays/popups.
+    if (mainOverlayEl?.contains(priceEl) || debugOverlayEl?.contains(priceEl) || infoPopupEl?.contains(priceEl)) continue;
 
     // Skip rental prices — only purchase prices for now.
     const priceText = normalizePrice(priceEl.textContent ?? "");
@@ -1511,10 +1573,8 @@ function renderListingComparisons() {
       } else {
         // ── Full 3-section variant ─────────────────────────────────────────
         const infoSvg =
-          `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">` +
-            `<circle cx="7" cy="7" r="6.25" stroke="#bbbbbb" stroke-width="1.5"/>` +
-            `<line x1="7" y1="6.5" x2="7" y2="10" stroke="#bbbbbb" stroke-width="1.5" stroke-linecap="round"/>` +
-            `<circle cx="7" cy="4.25" r="0.85" fill="#bbbbbb"/>` +
+          `<svg width="18" height="18" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">` +
+            `<path fill="#bbbbbb" fill-rule="nonzero" d="M256 0c70.691 0 134.695 28.656 181.021 74.979C483.344 121.305 512 185.309 512 256c0 70.691-28.656 134.695-74.979 181.018C390.695 483.344 326.691 512 256 512c-70.691 0-134.695-28.656-181.018-74.982C28.656 390.695 0 326.691 0 256S28.656 121.305 74.982 74.979C121.305 28.656 185.309 0 256 0zm-10.029 160.379c0-4.319.761-8.315 2.282-11.988 1.515-3.66 3.797-6.994 6.836-9.98 3.028-2.98 6.341-5.241 9.916-6.758 3.593-1.511 7.463-2.282 11.603-2.282 4.143 0 8.006.771 11.564 2.278 3.561 1.521 6.828 3.782 9.808 6.779 2.976 2.987 5.212 6.31 6.695 9.973 1.489 3.663 2.236 7.659 2.236 11.978 0 4.195-.739 8.128-2.229 11.767-1.483 3.631-3.709 6.993-6.692 10.046-2.965 3.043-6.232 5.342-9.79 6.878-3.569 1.528-7.432 2.306-11.592 2.306-4.259 0-8.206-.764-11.834-2.278-3.604-1.522-6.913-3.807-9.892-6.832-2.973-3.046-5.209-6.383-6.685-10.032-1.486-3.646-2.226-7.596-2.226-11.855zm13.492 179.381c-1.118 4.002-3.375 11.837 3.316 11.837 1.451 0 3.299-.81 5.5-2.412 2.387-1.721 5.125-4.336 8.192-7.799 3.116-3.53 6.362-7.701 9.731-12.507 3.358-4.795 6.888-10.292 10.561-16.419a1.39 1.39 0 011.907-.484l12.451 9.237c.593.434.729 1.262.34 1.878-5.724 9.952-11.512 18.642-17.362 26.056-5.899 7.466-11.879 13.66-17.936 18.553l-.095.07c-6.057 4.908-12.269 8.602-18.634 11.077-17.713 6.86-45.682 5.742-53.691-14.929-5.062-13.054-.897-27.885 3.085-40.651l20.089-60.852c1.286-4.617 2.912-9.682 3.505-14.439.974-7.915-2.52-13.032-11.147-13.032h-17.562a1.402 1.402 0 01-1.395-1.399l.077-.484 4.617-16.801a1.39 1.39 0 011.356-1.02l89.743-2.815a1.39 1.39 0 011.434 1.34l-.063.445-38.019 125.55zm151.324-238.547C371.178 61.606 316.446 37.101 256 37.101c-60.446 0-115.174 24.501-154.784 64.112C61.606 140.822 37.101 195.554 37.101 256c0 60.446 24.505 115.178 64.115 154.784 39.606 39.61 94.338 64.115 154.784 64.115s115.178-24.505 154.787-64.115c39.611-39.61 64.112-94.338 64.112-154.784s-24.505-115.178-64.112-154.787z"/>` +
           `</svg>`;
 
         widget.innerHTML =
@@ -1565,8 +1625,32 @@ function renderListingComparisons() {
           histWage:  histRegional.avgWage,
         };
         _popupCtx.set(infoBtn, popupCtx);
+        // Mark + schedule the pulse sequence for the first widget on detail pages.
+        // Always re-stamp the ID so the timer finds the current DOM node after re-renders.
+        // Only start a new sequence when the URL changes (new listing).
+        if (isDetailPage() && !infoIconSeen && latestPopupCtx === null) {
+          infoBtn.id = 'su-pulse-target';
+          if (location.href !== infoPulseHref) {
+            // New listing — start a fresh sequence.
+            cancelPulseSequence();
+            infoPulseHref = location.href;
+            startPulseSequence();
+          }
+        }
+        // Track the most recent context so the main overlay ⓘ button can use it.
+        if (latestPopupCtx === null) latestPopupCtx = popupCtx;
+        // Stop both mousedown and click so sreality's card navigation
+        // (which can fire on mousedown in React SPAs) never reaches the <a>.
+        infoBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); });
         infoBtn.addEventListener('click', (e) => {
           e.stopPropagation();
+          // Stop the pulse sequence and mark as permanently seen.
+          infoBtn.classList.remove('su-info-pulse');
+          cancelPulseSequence();
+          if (!infoIconSeen) {
+            infoIconSeen = true;
+            chrome.storage.local.set({ infoIconSeen: true });
+          }
           const ctx = _popupCtx.get(infoBtn);
           if (ctx) showInfoPopup(infoBtn, ctx);
         });
@@ -1579,6 +1663,9 @@ function renderListingComparisons() {
 
     priceEl.after(widget);
     comparisonEls.push(widget);
+  }
+  } finally {
+    observer?.observe(document.body, { childList: true, subtree: true });
   }
 }
 
@@ -1620,6 +1707,17 @@ function updateDetailComparison() {
 
   try {
     const c = computeBurdenComparison(currentPrice, activeYear, region);
+
+    // Keep latestPopupCtx current so the main overlay ⓘ button works on detail pages.
+    const nowRegional  = getRegionalData(CURRENT.year, region);
+    const histRegional = getRegionalData(activeYear, region);
+    latestPopupCtx = {
+      c, region, isEstimated,
+      nowIndex:  nowRegional.priceIndex,
+      histIndex: histRegional.priceIndex,
+      nowWage:   nowRegional.avgWage,
+      histWage:  histRegional.avgWage,
+    };
 
     const histPriceDeltaPct  = ((c.historicalPrice           - currentPrice)            / currentPrice)            * 100;
     const histPayDeltaPct    = ((c.historicalMonthlyPayment  - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
@@ -1712,7 +1810,7 @@ removeAdCards();
 
 let debounceTimer: ReturnType<typeof setTimeout>;
 
-const observer = new MutationObserver(() => {
+observer = new MutationObserver(() => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     removeAdCards();
@@ -1752,12 +1850,217 @@ document.addEventListener('click', (e) => {
   }
 }, true);
 
+// Close info popup and/or about overlay on Escape key.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { hideInfoPopup(); hideAboutOverlay(); }
+});
+
+// ─── About overlay ────────────────────────────────────────────────────────────
+
+let aboutCSSInjected = false;
+
+function ensureAboutCSS() {
+  if (aboutCSSInjected) return;
+  aboutCSSInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    #su-about-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 2147483646;
+      animation: su-about-bd-in 0.15s ease-out;
+    }
+    @keyframes su-about-bd-in {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    #su-about-backdrop.su-hidden { display: none !important; }
+    #su-about-panel {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 520px; max-width: 92vw;
+      max-height: 82vh; overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 16px;
+      color: #111111;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 13px; font-weight: 600; line-height: 1.7;
+      z-index: 2147483647;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+      animation: su-about-in 0.15s ease-out;
+    }
+    @keyframes su-about-in {
+      from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)); }
+      to   { opacity: 1; transform: translate(-50%, -50%); }
+    }
+    #su-about-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px 11px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
+    #su-about-title {
+      font-size: 13px; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; color: #888888;
+    }
+    #su-about-close {
+      background: none; border: none; color: #aaaaaa; cursor: pointer;
+      font-size: 15px; line-height: 1; padding: 0 0 0 12px;
+      transition: color 0.15s; font-family: inherit;
+    }
+    #su-about-close:hover { color: #111111; }
+    #su-about-body { padding: 16px 20px 20px; }
+    .su-ab-section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #dc2626;
+      border-bottom: 1px solid rgba(220,38,38,0.15);
+      padding-bottom: 4px; margin-bottom: 9px;
+    }
+    .su-ab-section { margin-bottom: 20px; }
+    .su-ab-section:last-child { margin-bottom: 0; }
+    .su-ab-p {
+      margin-bottom: 9px; color: #333333;
+      font-size: 13px; font-weight: 600; line-height: 1.7;
+    }
+    .su-ab-p:last-child { margin-bottom: 0; }
+    .su-ab-credits {
+      margin-top: 12px; padding: 11px 14px;
+      background: rgba(220,38,38,0.04);
+      border: 1px solid rgba(220,38,38,0.14);
+      border-radius: 10px;
+      font-size: 12px; color: #555555;
+    }
+    .su-ab-credits strong { color: #111111; }
+    .su-ab-list {
+      margin: 6px 0 9px 0; padding-left: 16px;
+      font-size: 13px; font-weight: 600; color: #333333; line-height: 1.7;
+    }
+    .su-ab-list li { margin-bottom: 2px; }
+  `;
+  document.head.appendChild(style);
+}
+
+function buildAboutOverlay(): HTMLElement {
+  ensureAboutCSS();
+  const lang = getLang();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'su-about-backdrop';
+
+  const panel = document.createElement('div');
+  panel.id = 'su-about-panel';
+
+  if (lang === 'cs') {
+    panel.innerHTML = `
+      <div id="su-about-header">
+        <span id="su-about-title">O projektu</span>
+        <button id="su-about-close" title="Zavřít">✕</button>
+      </div>
+      <div id="su-about-body">
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Jak se to počítá?</div>
+          <p class="su-ab-p">Porovnáváme "zátížení bydlením" — jaký podíl svého čistého příjmu by domácnost dvou průměrně vydělávajících lidí věnovala splátce hypotéky. Tehdy a dnes.</p>
+          <p class="su-ab-p">Pro každý byt vypočítáme splátku 30leté hypotéky s 10% zálohou při aktuální průměrné sazbě. Pak ji porovnáme s čistým příjmem domácnosti (2 × regionální průměrná mzda × 0,77). Výsledný podíl je "zátížení".</p>
+          <p class="su-ab-p">"Ekvivalentní cena" je taková cena, při níž by dnešní domácnost platila stejný podíl příjmu jako domácnost v porovnávaném roce — tím ukazuje, jak moc jsou dnešní ceny mimo dosah.</p>
+        </div>
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Data a omezení</div>
+          <ul class="su-ab-list">
+            <li><strong>Cenové indexy:</strong> ČSÚ — realizované transakce bytů</li>
+            <li><strong>Průměrné mzdy:</strong> ČSÚ — regionální průměry</li>
+            <li><strong>Hypoteční sazby:</strong> Hypoindex / ČNB</li>
+          </ul>
+          <p class="su-ab-p">Ceny jsou regionální průměry — prémiové čtvrti mohou být výrazně dražší. Historické ceny jsou odhady na základě indexů, ne skutečné ceny konkrétního bytu. Data za rok 2024 jsou předběžná. Model nezohledňuje různé doby splatnosti, bonitu žadatele ani daňové odpočty.</p>
+        </div>
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Proč to vzniklo</div>
+          <p class="su-ab-p">Spousta lidí popírá, jak vážná situace s dostupností bydlení je — nebo přičítá krizi osobnímu selhání. Tato aplikace nechává promluvit čísla: kolik procent průměrného příjmu spolkla splátka tehdy a kolik dnes.</p>
+          <div class="su-ab-credits">
+            Udělali jsme to společně: <strong>Wild</strong> (myšlenka, testování, frustrace z trhu) a <strong>Claude</strong> (kódování, modelování, matematika). Věříme, že data jasně ukazují — bydlení je krize, ne osobní problém.
+          </div>
+        </div>
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Upozornění</div>
+          <p class="su-ab-p">Toto rozšíření není žádným způsobem spojeno se Sreality.cz ani Seznam.cz. Jde o nezávislý projekt třetí strany. Data ČSÚ jsou použita pouze pro informační účely.</p>
+        </div>
+      </div>
+    `;
+  } else {
+    panel.innerHTML = `
+      <div id="su-about-header">
+        <span id="su-about-title">About</span>
+        <button id="su-about-close" title="Close">✕</button>
+      </div>
+      <div id="su-about-body">
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">How is it calculated?</div>
+          <p class="su-ab-p">We compare "housing burden" — the share of net household income (two average earners) that would go toward mortgage payments. Then vs. now.</p>
+          <p class="su-ab-p">For each property we calculate a 30-year mortgage with 10% down at the average rate for that year. We compare that to net household income (2 × regional average wage × 0.77). The resulting ratio is the "burden".</p>
+          <p class="su-ab-p">The "equivalent price" is the price at which today's household would carry the same burden as in the comparison year — showing just how far prices have drifted beyond reach.</p>
+        </div>
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Data & Limitations</div>
+          <ul class="su-ab-list">
+            <li><strong>Price indices:</strong> ČSÚ — realized apartment transactions</li>
+            <li><strong>Average wages:</strong> ČSÚ — regional averages</li>
+            <li><strong>Mortgage rates:</strong> Hypoindex / ČNB</li>
+          </ul>
+          <p class="su-ab-p">Prices are regional averages — premium neighborhoods may be significantly higher. Historical prices are index-based estimates, not actual prices for this specific property. 2024 data are preliminary. The model doesn't account for varying loan terms, creditworthiness, or tax deductions.</p>
+        </div>
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Why it exists</div>
+          <p class="su-ab-p">Many people deny how severe the housing affordability crisis is — or attribute it to personal failure. This app lets the numbers speak: what share of average income did a mortgage consume back then, and what share does it consume today.</p>
+          <div class="su-ab-credits">
+            Built together: <strong>Wild</strong> (idea, testing, frustration with the market) and <strong>Claude</strong> (coding, modelling, maths). We believe the data is clear — housing is a crisis, not a personal failure.
+          </div>
+        </div>
+        <div class="su-ab-section">
+          <div class="su-ab-section-title">Disclaimer</div>
+          <p class="su-ab-p">This extension is not affiliated with, endorsed by, or connected to Sreality.cz or Seznam.cz in any way. It is an independent third-party project. ČSÚ data is used for informational purposes only.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  backdrop.appendChild(panel);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) hideAboutOverlay();
+  });
+  panel.querySelector('#su-about-close')!.addEventListener('click', hideAboutOverlay);
+
+  // Pause observer so appending the backdrop doesn't trigger a widget re-render loop.
+  observer?.disconnect();
+  document.body.appendChild(backdrop);
+  observer?.observe(document.body, { childList: true, subtree: true });
+
+  return backdrop;
+}
+
+function showAboutOverlay() {
+  if (aboutOverlayEl) {
+    // Rebuild fresh (language may have changed, content is static).
+    aboutOverlayEl.remove();
+    aboutOverlayEl = null;
+  }
+  aboutOverlayEl = buildAboutOverlay();
+}
+
+function hideAboutOverlay() {
+  if (!aboutOverlayEl) return;
+  aboutOverlayEl.remove();
+  aboutOverlayEl = null;
+}
+
 // ─── Language switching ────────────────────────────────────────────────────────
 
 /** Destroy and rebuild all injected UI so translations take effect immediately. */
 function rebuildAllUI(): void {
   // Reset info popup singleton — rebuilt fresh on next ⓘ click.
   if (infoPopupEl) { infoPopupEl.remove(); infoPopupEl = null; }
+
+  // Rebuild about overlay if it was open (content is language-sensitive).
+  if (aboutOverlayEl) { aboutOverlayEl.remove(); aboutOverlayEl = null; }
 
   // Rebuild main overlay (showMainOverlay re-renders widgets via applyHighlights).
   if (mainOverlayEl) {
@@ -1789,7 +2092,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ─── Message listener ─────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "toggle-overlay")  toggleDebugOverlay();
-  if (msg.type === "show-overlay")    showMainOverlay();
-  if (msg.type === "show-debugger")   showDebugOverlay();
+  if (msg.type === "toggle-overlay")                       toggleDebugOverlay();
+  if (msg.type === "show-overlay")                         showMainOverlay();
+  if (msg.type === "show-debugger" && DEBUGGER_FEATURE_ENABLED) showDebugOverlay();
+  if (msg.type === "show-about")                           showAboutOverlay();
 });

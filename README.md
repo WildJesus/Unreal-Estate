@@ -1,94 +1,173 @@
 # Srealitky Universes
 
-> What would this flat have cost in 2015? What *should* it cost today for the burden to be the same?
-
-A Chrome extension for [sreality.cz](https://www.sreality.cz) that overlays every property listing with mortgage affordability context — comparing today's prices against historical years using real wage, rate, and price-index data.
+> **See Czech property prices adjusted for historical affordability.**  
+> Chrome extension for [sreality.cz](https://www.sreality.cz/) — not affiliated with Sreality.cz or Seznam.cz.
 
 ---
 
 ## What it does
 
-Czech housing has become dramatically less affordable over the last two decades. A flat that was reachable on a median salary in 2010 might require 2× the relative income today. This extension makes that visible — on every listing, without leaving the page.
+When browsing Czech property listings, the extension injects an affordability widget next to every price. Instead of just showing today's asking price, it answers the question:
 
-For each detected price it renders a three-section widget:
+> *"What would this flat need to cost today for the monthly mortgage burden to feel the same as in 2015?"*
+
+For most listings the answer is roughly half the asking price — which is the point.
+
+### The core metric: Burden Ratio
+
+```
+Burden Ratio = Monthly Mortgage Payment ÷ Household Net Income
+```
+
+A burden ratio of 0.55 means "55% of take-home pay goes to the mortgage." Comparing this ratio across time strips out wage growth and interest rate changes, leaving only the structural affordability shift.
+
+### What you see on a listing
+
+Each price gets a 3-section widget:
 
 | Section | What it shows |
 |---|---|
-| **Today** | Listed price · mortgage burden % · monthly payment |
-| **Historical** | What the flat likely cost in the selected year · burden then · payment then |
-| **Equivalent** | What the flat *would need to cost today* for the burden to match the past |
+| **Today** | Current price · Burden % · Monthly payment |
+| **Historical** | Estimated past price · Past burden % · Past mortgage |
+| **Equivalent** | What the flat *should* cost for today's buyer to feel like a 2015 buyer |
 
-The "equivalent price" is the one that sticks. If it says **↓58%** — the flat would need to cost 58% less today for your mortgage burden to match 2015.
-
-Works on listing grids, detail pages, and the map view.
+A year selector (2000–2025) lets you pick any comparison year. Default: **2015**.
 
 ---
 
-## Installation (developer mode)
+## Architecture
 
-1. Clone or download this repo
-2. Run `npm install` then `npm run build` (or `npx vite build`)
-3. Open Chrome → `chrome://extensions` → enable **Developer mode**
-4. Click **Load unpacked** → select the `dist/` folder
-5. Navigate to `sreality.cz` — the extension activates automatically
+### Extension Entry Points
 
-**Dev workflow:** `npx vite build --watch` keeps `dist/` live. After each rebuild, click the reload icon on `chrome://extensions`.
+| File | Role |
+|---|---|
+| `src/content.ts` | Heart of the extension (~1,800 lines). Injected into every sreality.cz page. Orchestrates scanning, calculation, and all UI rendering. |
+| `src/popup.ts` + `popup.html` | Toolbar popup: auto-open toggle, language switcher, launch buttons, about link. Self-contained — cannot share code with content script (Manifest V3 chunking constraint). |
+| `src/background.ts` | 9-line service worker. Relays toolbar button clicks to the active tab. |
+| `src/i18n.ts` | ~80 translation keys for Czech and English. |
 
----
-
-## How to use
-
-**On page load** the extension starts minimized — a small bar in the bottom-left corner showing the active comparison year as a red pill. Click the year to expand.
-
-**In the overlay** you can:
-- Change the comparison year via the **slider** or the **quick-pick pills** (2000 / 2005 / 2010 / 2015 / 2020)
-- Widgets update instantly on every listing visible on the page
-
-**The ⓘ icon** on each widget opens a step-by-step walkthrough of exactly how the numbers were derived — every intermediate value shown.
-
-**Debug mode** (via the popup → "Launch debugger") shows a raw list of all detected prices and their DOM sources — useful for diagnosing missed prices on unusual page layouts.
-
----
-
-## The math
+### Data Pipeline (runs per page / per year change)
 
 ```
-P_t  = P_now × (priceIndex_t / priceIndex_now)        // historical price estimate
-pay_t = (1 − 0.10) × P_t × annuityFactor(rate_t, 360) // monthly payment at historical rate
-income_t = 2 × regionalWage_t × 0.77                  // dual-earner household net income
-B_t  = pay_t / income_t                               // burden ratio
-stressMultiplier = B_now / B_t                        // "today is 1.68× more burdensome"
-equivPrice = P_now × (B_t / B_now)                    // burden-neutral price today
+① Detect Prices
+   TreeWalker scans DOM for "X Kč" patterns.
+   Strips U+200B zero-width spaces (sreality anti-scraping).
+   Skips strikethrough and per-m² prices.
+        ↓
+② Detect Location
+   Breadcrumb DOM → URL slug → card text walker.
+   200+ city/district names → 14 Czech regions.
+   Falls back to Praha if unknown.
+        ↓
+③ Compute (calc.ts)
+   For each (price × year × region):
+   historical price · mortgage payments · burden ratios
+   stress multiplier · burden-equivalent price
+        ↓
+④ Render
+   Inline widgets on listing cards.
+   Detail comparison in main overlay.
+   Story-based info popup on ⓘ click.
 ```
 
-**Data sources** (all Czech, regional where available):
-- Wages: ČSÚ annual averages, 14 kraje
-- Mortgage rates: Hypoindex / ČNB
-- Price index: ČSÚ realized transaction price indices
+### Domain & Calculation Layer
 
-**Assumptions:** 10% down payment, 30-year term, dual-earner household, 77% net take-home ratio.
+**`src/universes/calc.ts`** — Pure math, no DOM.
+
+```
+P_t = P_now × (priceIndex_t / priceIndex_now)         // historical price
+payment_t = (1 - 0.10) × P_t × annuityFactor(rate_t, 360)
+income_t = 2 × regionalWage_t × 0.77
+B_t = payment_t / income_t                            // burden ratio
+stressMultiplier = B_now / B_t                        // e.g. 1.68× worse today
+burdenEquivalentPrice = P_now × (B_t / B_now)         // the headline number
+```
+
+Model defaults: 10% down payment, 30-year term, 2-earner household, 77% gross-to-net ratio.
+
+**`src/universes/data.ts`** — All data hardcoded. Zero external API calls. Bundled at build time.
+
+- 27 years of data (2000–2026): mortgage rates (ČNB/Hypoindex), national price index (ČSÚ, 2015=100), national average wages (ČSÚ)
+- 14 Czech regions: per-region price indices (ČSÚ/ČÚZK realized transactions), regional wages (ČSÚ 2025)
+
+**`src/universes/location.ts`** — Maps any Czech locality string to one of 14 kraje.
+
+- Extraction order: breadcrumb DOM → URL slug → card text walk
+- 200+ entries: cities, districts, okresy; ASCII-folded for diacritics; longest-key-first matching
+
+### UI Components
+
+| Component | Description |
+|---|---|
+| **Main Overlay** | Fixed bottom-left, 360px. Year selector pills + range slider. Minimized mini-bar on auto-open. |
+| **Inline Widgets** | 3-section stacked widget per price. Compact map variant. ⓘ info button on each. |
+| **Info Popup** | Story-based "Jak se to počítá?" narrative. Dynamic numbers woven into a continuous prose walkthrough — not a formula sheet. Draggable, viewport-bounded. |
+| **Pulse Animation** | On detail pages, the ⓘ button slowly glows red after 5 seconds to draw attention. Runs on 10s/20s intervals until the user opens it. Permanently disabled after first click via `chrome.storage.local`. |
+| **About Overlay** | Project info, methodology, data sources, disclaimer. |
+| **Debug Overlay** | Development tool (hidden via feature flag in production). |
+| **Ad Removal** | Strips "TIP:" and "Reklama" sponsored cards from listing pages. |
+
+### Communication Paths
+
+| From | To | Mechanism | Carries |
+|---|---|---|---|
+| Popup | Content Script | `chrome.storage.sync` | Language preference, auto-open setting |
+| Popup | Content Script | `chrome.tabs.sendMessage` | "show-overlay" / "show-about" |
+| Service Worker | Content Script | `chrome.tabs.sendMessage` | "toggle-overlay" (toolbar button) |
+| Sreality DOM | Content Script | `MutationObserver` (400ms debounce) | SPA navigation & lazy-loaded content |
+| Content Script | Content Script | `storage.onChanged` | Language change → `rebuildAllUI()` |
+
+### Build & Deployment
+
+```bash
+vite build --watch               # dev: rebuilds on save, load dist/ in Chrome
+vite build                       # production bundle
+node icons/generate-icons.mjs    # rasterize SVG icon → PNG at 16/32/48/128px
+```
+
+- **4 entry points**: content, background, popup, sidebar — all bundled inline (no dynamic imports)
+- **Output**: `dist/` — load as unpacked extension in Chrome
+- **Permissions**: `activeTab`, `storage` — nothing else
 
 ---
 
-## Language
+## Key Business Concepts
 
-Czech and English are both supported. Switch in the extension popup (flag buttons). The setting persists across sessions and the entire UI re-renders live — no page reload needed.
+**Burden Ratio** — Monthly mortgage payment ÷ household net income. The core metric. Lets you compare affordability across decades despite changing wages and interest rates.
 
----
+**Stress Multiplier** — Today's burden ÷ historical burden. "1.68×" means housing eats 68% more of your income today than in the comparison year.
 
-## Tech
+**Burden-Equivalent Price** — "What would this flat need to cost today for the mortgage burden to feel like year X?" This is the headline insight: for most Prague listings in 2026, it is roughly 40–50% below the asking price.
 
-- **TypeScript + Vite** — multi-entry build (content script, popup, background, sidebar)
-- **Manifest V3** — no eval, no remote code, minimal permissions (`activeTab`, `storage`)
-- **No framework** — vanilla DOM manipulation; all styles injected via `document.head`
-- **Quicksand** (Google Fonts) — loaded via `@import` inside injected `<style>` blocks
+**Regional Data** — Prague prices grew ~15% faster than the national average; Ústecký kraj ~25% slower. The extension uses per-region price indices and wages so the comparison is accurate for each listing's location, not just a national average.
 
-All economic data is bundled as static JSON in `dist/data/` — no network requests after install.
+**Anti-Scraping Handling** — Sreality injects zero-width spaces (U+200B) and per-character `<span>` obfuscation into price strings. The scanner normalizes these before any number parsing.
 
 ---
 
-## Status
+## Data Sources
 
-`v0.5.3` — actively developed. Chrome Web Store submission planned once the UI stabilises.
+| Data | Source |
+|---|---|
+| Mortgage rates | Fincentrum/Swiss Life Hypoindex + ČNB new-business rates |
+| National price index | ČSÚ realized transaction price indices (2015 = 100) |
+| Regional price indices | ČSÚ/ČÚZK regional realized transactions |
+| National wages | ČSÚ annual average gross monthly wage |
+| Regional wages | ČSÚ release March 2026 |
 
-Built as a learning project for LLM-driven development. The commit history reflects iterative AI-assisted feature work.
+All data is static, hardcoded at build time. The extension makes no network requests.
+
+---
+
+## Tech Stack
+
+- TypeScript + Vite (multi-entry ES module build)
+- Manifest V3 Chrome Extension
+- No external runtime dependencies (all bundled inline)
+- `sharp` (dev dependency) for icon rasterization
+
+---
+
+## Disclaimer
+
+This extension is not affiliated with, endorsed by, or connected to Sreality.cz or Seznam.cz in any way. It is an independent third-party project. ČSÚ data is used for informational purposes only.
