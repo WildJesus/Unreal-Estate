@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.9";
+const VERSION = "0.5.10";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1029,7 +1029,7 @@ function ensureComparisonCSS() {
       transition: color 0.15s;
       pointer-events: auto !important;
     }
-    .su-cw-info svg { pointer-events: none; }
+    .su-cw-info svg { pointer-events: none !important; }
     .su-cw-info:hover { color: #555555 !important; }
 
     /* ── Info popup ── */
@@ -1191,8 +1191,10 @@ function makePopupDraggable(popup: HTMLElement, handle: HTMLElement): void {
     handle.style.cursor = 'grabbing';
 
     const onMove = (e: MouseEvent) => {
-      popup.style.left   = `${startLeft + e.clientX - startX}px`;
-      popup.style.top    = `${startTop  + e.clientY - startY}px`;
+      const newLeft = Math.max(0, Math.min(startLeft + e.clientX - startX, window.innerWidth  - popup.offsetWidth));
+      const newTop  = Math.max(0, Math.min(startTop  + e.clientY - startY, window.innerHeight - popup.offsetHeight));
+      popup.style.left   = `${newLeft}px`;
+      popup.style.top    = `${newTop}px`;
       popup.style.bottom = '';
     };
     const onUp = () => {
@@ -1392,21 +1394,28 @@ function positionPopup(anchor: HTMLElement): void {
   const rect  = anchor.getBoundingClientRect();
   const vw    = window.innerWidth;
   const vh    = window.innerHeight;
-  const pW    = 550;  // max popup width
+  const pW    = popup.offsetWidth  || 550;
+  const pH    = popup.offsetHeight || 400;
 
-  // Prefer showing popup to the left of the anchor; flip right if too close to left edge.
-  const leftIfLeft = rect.right - pW;
-  const left = leftIfLeft >= 8 ? leftIfLeft : rect.left;
+  // Horizontal: right-align with anchor, clamped to viewport.
+  const left = Math.max(8, Math.min(rect.right - pW, vw - pW - 8));
 
-  // Prefer below; flip above if not enough space below.
-  const spaceBelow = vh - rect.bottom;
-  const top = spaceBelow >= 40 ? rect.bottom + 6 : rect.top - 6;
-  const transformOrigin = spaceBelow >= 40 ? 'top right' : 'bottom right';
+  // Vertical: prefer below anchor; flip above if not enough room; always clamp.
+  const spaceBelow = vh - rect.bottom - 6;
+  let top: number;
+  if (spaceBelow >= pH) {
+    top = rect.bottom + 6;                     // fits below
+  } else if (rect.top - 6 >= pH) {
+    top = rect.top - 6 - pH;                   // fits above
+  } else {
+    top = Math.max(8, vh - pH - 8);            // doesn't fit either way — best effort
+  }
+  top = Math.max(8, Math.min(top, vh - pH - 8));
 
-  popup.style.left   = `${Math.max(8, Math.min(left, vw - pW - 8))}px`;
-  popup.style.top    = spaceBelow >= 40 ? `${top}px` : '';
-  popup.style.bottom = spaceBelow < 40  ? `${vh - rect.top + 6}px` : '';
-  popup.style.transformOrigin = transformOrigin;
+  popup.style.left   = `${left}px`;
+  popup.style.top    = `${top}px`;
+  popup.style.bottom = '';
+  popup.style.transformOrigin = spaceBelow >= pH ? 'top right' : 'bottom right';
 }
 
 function showInfoPopup(anchor: HTMLElement, ctx: PopupCtx): void {
@@ -1414,12 +1423,17 @@ function showInfoPopup(anchor: HTMLElement, ctx: PopupCtx): void {
   if (!infoPopupEl) infoPopupEl = buildInfoPopup();
 
   renderPopupContent(ctx);
-  positionPopup(anchor);
 
-  // Re-trigger animation by removing and re-adding the element's animation.
+  // Make visible but invisible so offsetHeight is measurable before positioning.
   infoPopupEl.classList.remove('su-popup-hidden');
   infoPopupEl.style.animation = 'none';
-  // Force reflow so the re-applied animation actually fires.
+  infoPopupEl.style.opacity   = '0';
+  void infoPopupEl.offsetHeight;  // force layout so dimensions are real
+
+  positionPopup(anchor);          // now has true offsetWidth/offsetHeight
+
+  // Re-trigger entrance animation.
+  infoPopupEl.style.opacity = '';
   void infoPopupEl.offsetHeight;
   infoPopupEl.style.animation = '';
 }
