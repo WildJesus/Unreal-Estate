@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.7";
+const VERSION = "0.5.8";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1002,9 +1002,18 @@ function ensureComparisonCSS() {
     .su-cw-equiv-sep {
       font-size: 9px; font-weight: 600 !important; color: #bbbbbb !important; letter-spacing: 0.02em;
     }
-    .su-cw-equiv-delta {
-      display: flex !important; justify-content: flex-start; padding: 1px 0;
+    .su-cw-equiv-block {
+      display: grid !important;
+      grid-template-columns: auto auto 1fr;
+      grid-template-rows: auto auto;
+      column-gap: 6px; row-gap: 4px;
+      align-items: center;
     }
+    .su-cw-equiv-block > :nth-child(1) { grid-column: 1; grid-row: 1; }
+    .su-cw-equiv-block > :nth-child(2) { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+    .su-cw-equiv-block > :nth-child(3) { grid-column: 3; grid-row: 1; }
+    .su-cw-equiv-block > :nth-child(4) { grid-column: 1; grid-row: 2; }
+    .su-cw-equiv-block > :nth-child(5) { grid-column: 3; grid-row: 2; }
     .su-cw-delta {
       font-size: 10px; font-weight: 700 !important; letter-spacing: 0.02em;
       padding: 1px 4px; border-radius: 3px;
@@ -1331,12 +1340,10 @@ function renderPopupContent(ctx: PopupCtx): void {
       </div>
       <hr class="su-cw-divider" />
       <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
-      <div class="su-cw-row">
+      <div class="su-cw-equiv-block">
         <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
+        ${cwDelta(equivPriceDeltaPct)}
         <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
-      </div>
-      <div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>
-      <div class="su-cw-row">
         <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
         <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
       </div>
@@ -1472,12 +1479,10 @@ function renderListingComparisons() {
         // ── Map pin variant: equiv section only, no ⓘ ─────────────────────
         widget.classList.add('su-comp-widget-map');
         widget.innerHTML =
-          `<div class="su-cw-row">` +
+          `<div class="su-cw-equiv-block">` +
             `<span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>` +
+            `${cwDelta(equivPriceDeltaPct)}` +
             `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
-          `</div>` +
-          `<div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>` +
-          `<div class="su-cw-row">` +
             `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
             `<span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>` +
           `</div>`;
@@ -1520,12 +1525,10 @@ function renderListingComparisons() {
           // ── Section 3: burden-equivalent — the punchline ──────────────────
           `<hr class="su-cw-divider" />` +
           `<div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>` +
-          `<div class="su-cw-row">` +
+          `<div class="su-cw-equiv-block">` +
             `<span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>` +
+            `${cwDelta(equivPriceDeltaPct)}` +
             `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
-          `</div>` +
-          `<div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>` +
-          `<div class="su-cw-row">` +
             `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
             `<span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>` +
           `</div>`;
@@ -1626,12 +1629,10 @@ function updateDetailComparison() {
         </div>
         <hr class="su-cw-divider" />
         <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
-        <div class="su-cw-row">
+        <div class="su-cw-equiv-block">
           <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
+          ${cwDelta(equivPriceDeltaPct)}
           <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
-        </div>
-        <div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>
-        <div class="su-cw-row">
           <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
           <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
         </div>
