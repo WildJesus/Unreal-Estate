@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.2";
+const VERSION = "0.5.3";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -882,6 +882,7 @@ function buildMainOverlay(): HTMLElement {
 
   // Restore selected year if one was active before a rebuild (e.g. language switch).
   if (activeYear !== null) {
+    selectedYear = activeYear;  // must be set before updateMiniFilters() reads it
     const idx = availableYears.indexOf(activeYear);
     if (idx >= 0) { yearSlider.value = String(idx); updateSliderFill(); }
     yearDisplay.innerHTML = `
