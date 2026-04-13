@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.3";
+const VERSION = "0.5.4";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -729,6 +729,7 @@ function buildMainOverlay(): HTMLElement {
       <span id="su-mo-mini-label">Srealitky Universes</span>
       <span id="su-mo-mini-filters"></span>
       <div id="su-mo-mini-controls">
+        <button class="su-mo-btn" id="su-mo-unminimize" title="${t('moExpand')}">▭</button>
         <button class="su-mo-btn" id="su-mo-mini-close" title="${t('moClose')}">✕</button>
       </div>
     </div>
@@ -876,6 +877,9 @@ function buildMainOverlay(): HTMLElement {
     if ((e.target as HTMLElement).classList.contains("su-mini-year-btn")) {
       el.classList.remove("su-minimized");
     }
+  });
+  el.querySelector("#su-mo-unminimize")!.addEventListener("click", () => {
+    el.classList.remove("su-minimized");
   });
   el.querySelector("#su-mo-close")!.addEventListener("click", hideMainOverlay);
   el.querySelector("#su-mo-mini-close")!.addEventListener("click", hideMainOverlay);
