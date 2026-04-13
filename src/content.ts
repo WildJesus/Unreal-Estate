@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.1";
+const VERSION = "0.5.2";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -509,7 +509,7 @@ function buildMainOverlay(): HTMLElement {
       position: fixed;
       bottom: 20px;
       left: 20px;
-      width: 320px;
+      width: 360px;
       background: #ffffff;
       border: 1px solid rgba(0,0,0,0.12);
       border-radius: 16px;
@@ -550,17 +550,27 @@ function buildMainOverlay(): HTMLElement {
     /* ── Minimized bar ── */
     #su-mo-mini {
       display: none; align-items: center;
-      padding: 10px 14px; gap: 0;
+      padding: 9px 14px; gap: 8px;
     }
     #su-main-overlay.su-minimized #su-mo-header { display: none; }
     #su-main-overlay.su-minimized #su-mo-mini   { display: flex; }
     #su-main-overlay.su-minimized #su-mo-body   { display: none; }
 
-    #su-mo-mini-label { font-size: 13px; font-weight: 700; color: #111111; white-space: nowrap; }
-    #su-mo-mini-filters {
-      font-size: 11px; font-weight: 700; color: #dc2626;
-      flex: 1; padding: 0 8px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    #su-mo-mini-label {
+      font-size: 12px; font-weight: 700; color: #888888;
+      letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+    }
+    #su-mo-mini-filters { flex: 1; display: flex; align-items: center; }
+    .su-mini-year-btn {
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.04em;
+      color: #dc2626; background: rgba(220,38,38,0.08);
+      border: 1px solid rgba(220,38,38,0.30); border-radius: 6px;
+      padding: 3px 10px; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .su-mini-year-btn:hover {
+      background: rgba(220,38,38,0.16); border-color: rgba(220,38,38,0.55);
     }
     #su-mo-mini-controls { display: flex; gap: 2px; flex-shrink: 0; }
 
@@ -719,7 +729,6 @@ function buildMainOverlay(): HTMLElement {
       <span id="su-mo-mini-label">Srealitky Universes</span>
       <span id="su-mo-mini-filters"></span>
       <div id="su-mo-mini-controls">
-        <button class="su-mo-btn" id="su-mo-unminimize" title="${t('moExpand')}">□</button>
         <button class="su-mo-btn" id="su-mo-mini-close" title="${t('moClose')}">✕</button>
       </div>
     </div>
@@ -797,10 +806,12 @@ function buildMainOverlay(): HTMLElement {
   }
 
   function updateMiniFilters() {
-    const parts: string[] = [];
-    if (yearChk.checked && selectedYear !== null) parts.push(String(selectedYear));
-    if (cityChk.checked) parts.push("Praha");
-    miniFilters.textContent = parts.length > 0 ? "· " + parts.join(" · ") : "";
+    if (yearChk.checked && selectedYear !== null) {
+      miniFilters.innerHTML =
+        `<button class="su-mini-year-btn">${selectedYear}</button>`;
+    } else {
+      miniFilters.innerHTML = '';
+    }
   }
 
   function selectYear(year: number | null) {
@@ -860,8 +871,11 @@ function buildMainOverlay(): HTMLElement {
     updateMiniFilters();
     el.classList.add("su-minimized");
   });
-  el.querySelector("#su-mo-unminimize")!.addEventListener("click", () => {
-    el.classList.remove("su-minimized");
+  // Year pill in the mini bar expands the overlay.
+  miniFilters.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).classList.contains("su-mini-year-btn")) {
+      el.classList.remove("su-minimized");
+    }
   });
   el.querySelector("#su-mo-close")!.addEventListener("click", hideMainOverlay);
   el.querySelector("#su-mo-mini-close")!.addEventListener("click", hideMainOverlay);
@@ -1698,6 +1712,7 @@ chrome.storage.sync.get({ autoOpen: true, lang: 'cs' }, (settings) => {
   if (settings.autoOpen) {
     activeYear = 2015;  // default comparison year on page load
     showMainOverlay();
+    mainOverlayEl!.classList.add("su-minimized");  // start collapsed on auto-open
   }
 });
 
