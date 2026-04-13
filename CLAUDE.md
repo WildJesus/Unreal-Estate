@@ -10,7 +10,7 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-13): v0.5.3 working
+## Current Status (2026-04-13): v0.5.9 working
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
@@ -20,14 +20,16 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
 - Main overlay (bottom-left, 360px wide):
   - Year selector pills (2000/2005/2010/2015/2020) + range slider; default year 2015 on auto-open
   - Auto-opens **minimized** on page load; mini bar shows year as red clickable pill → click expands
-  - Mini bar: "SREALITKY UNIVERSES · [2015]" — clicking the year pill expands the overlay
+  - Mini bar: "SREALITKY UNIVERSES · [2015] · ▭ · ✕" — year pill or ▭ button expands
 - Debug overlay (bottom-right): raw detected prices with source labels
 - Inline comparison widgets: 3-section stacked widget per price — today / historical / burden-equivalent
   - Section 1: today's price + burden% + mortgage payment
-  - Section 2: historical price (↓X%) + burden% + historical mortgage (↓X%)  
-  - Section 3: burden-equivalent price (↓X%) + equivalent mortgage payment
+  - Section 2: historical price (↓X%) + burden% + historical mortgage (↓X%)
+  - Section 3 (equiv): CSS grid layout — label/mortgage in col 1, single shared ↓X% badge spanning
+    both rows in col 2, price/payment in col 3. No extra height.
   - Map view: compact equiv-only variant stacked below price label
 - Info popup (ⓘ icon): Czech/English walkthrough tracing exact widget number derivation step-by-step
+  - `pointer-events: auto !important` on button; `pointer-events: none` on inner SVG (no flicker)
 - Detail comparison panel: matches inline widget 3-section layout exactly
 - Info popup header: `Price → EquivPrice · Region` (no house icon, uniform font)
 - Ad card removal: strips "TIP:" and "Reklama" cards from listing pages
@@ -35,12 +37,20 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
 - Location detection: CSS selector + text-node walker, 14 Czech kraje, longest-key-first `mapToRegion()`
 - i18n: Czech/English switcher in popup via `chrome.storage.sync`; live re-render via `storage.onChanged`
 - Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`
-- Widget immune to parent card :hover via `!important` on all color/text properties
+- Widget immune to parent card :hover via `!important` on all color/text/pointer-events properties
 
-### Known state / two-variable pattern to watch
-`buildMainOverlay()` has a local `selectedYear` and a module-level `activeYear` that must stay in sync.
-`selectYear()` updates both. The restore block at the end of `buildMainOverlay()` must explicitly set
-`selectedYear = activeYear` before calling `updateMiniFilters()`, or the mini bar renders nothing.
+### Known pitfalls
+**Two year variables** — `buildMainOverlay()` has local `selectedYear` + module-level `activeYear`.
+`selectYear()` updates both. The restore block must set `selectedYear = activeYear` before calling
+`updateMiniFilters()` or the mini bar renders nothing. Burned in v0.5.2.
+
+**Template literals + variable cleanup** — When removing a computed variable (e.g. `equivPayDeltaPct`),
+grep ALL template literals for derived variables (`equivPayArrow`, `absEquivPayDelta`) that reference it.
+Vite does not catch undefined template literal variable references at build time. Burned in v0.5.5→v0.5.7.
+
+**Sreality card pointer-events** — Our widgets land inside sreality's card `<a>` tags via `priceEl.after()`.
+Sreality applies `pointer-events: none` to anchor descendants. Any interactive element in our widget needs
+`pointer-events: auto !important` to stay clickable.
 
 ## Math Model (v0.3.0 — burden ratio)
 ```
