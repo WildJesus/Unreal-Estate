@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.5";
+const VERSION = "0.5.6";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1003,7 +1003,7 @@ function ensureComparisonCSS() {
       font-size: 9px; font-weight: 600 !important; color: #bbbbbb !important; letter-spacing: 0.02em;
     }
     .su-cw-equiv-delta {
-      display: flex !important; justify-content: center; padding: 1px 0;
+      display: flex !important; justify-content: flex-start; padding: 1px 0;
     }
     .su-cw-delta {
       font-size: 10px; font-weight: 700 !important; letter-spacing: 0.02em;
