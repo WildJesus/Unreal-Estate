@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.6";
+const VERSION = "0.5.7";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1297,7 +1297,7 @@ function renderPopupContent(ctx: PopupCtx): void {
           <span class="su-pp-widget-ref">${t('ppWidgetPriceRef', equivPriceArrow, absEquivPriceDelta)}</span>
         </code>
         ${t('ppStep3Payment', formatCZK(c.burdenEquivalentPrice), nowRatePct, formatCZK(c.burdenEquivalentPayment))}
-        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', equivPayArrow, absEquivPayDelta)}</span><br>
+        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', equivPriceArrow, absEquivPriceDelta)}</span><br>
         <span class="su-pp-step-note">${t('ppStep3Conclusion', formatCZK(c.burdenEquivalentPayment), formatCZK(c.currentMonthlyPayment))}</span>
       </div>
     </div>
