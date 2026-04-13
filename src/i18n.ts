@@ -77,7 +77,7 @@ const T = {
     ppStep1Income:      (region: string, year: number, income: string) =>
                           `Čistý příjem domácnosti (${region}, ${year}): ~${income}/měs`,
     ppBurdenFormula:    'Zatížení',
-    ppStep2Head:        (year: number) => `2. Zatížení v roce ${year}`,
+    ppStep2Head:        (year: number) => `Co to bylo v roce ${year}`,
     ppStep2Growth:      (region: string, year: number, pct: string, histPrice: string) =>
                           `Ceny v ${region} vzrostly od ${year} o ${pct}% → odhadovaná cena tehdy: ${histPrice}`,
     ppStep2Payment:     (histPrice: string, rate: string, payment: string) =>
@@ -86,13 +86,21 @@ const T = {
     ppStep2Income:      (region: string, year: number, income: string) =>
                           `Čistý příjem domácnosti (${region}, ${year}): ~${income}/měs`,
     ppWidgetBurdenRef:  (burden: string) => `widget Zatížení ${burden}`,
-    ppStep3Head:        '3. Za kolik by musel být byt dnes, aby zatížení bylo stejné?',
+    ppStep3Head:        'Co by to muselo stát dnes',
     ppStep3Body:        (burden: string) =>
                           `Pro zatížení ${burden} při dnešních sazbách a příjmech:`,
     ppWidgetPriceRef:   (arrow: string, pct: string) => `widget ${arrow}${pct}%`,
     ppResult:           (mult: string, year: number) =>
                           `Dnes je bydlení ${mult} náročnější než v roce ${year}.`,
     ppWidgetLabel:      'Výsledek ve widgetu:',
+    ppStep3Payment:     (equivPrice: string, rate: string, equivPayment: string) =>
+                          `Splátka: ${equivPrice}, 10% akontace, sazba ${rate}% → ${equivPayment}/měs`,
+    ppStep3Conclusion:  (equivPayment: string, currentPayment: string) =>
+                          `Místo dnešních ${currentPayment}/měs by stačilo platit ${equivPayment}/měs.`,
+
+    // ── Inline widget — equiv section ─────────────────────────────────────────
+    widgetEquivLabel:   'Ekvivalent',
+    widgetEquivSep:     '↕ přepočet na dnešní podmínky',
 
     // ── Data sources table ────────────────────────────────────────────────────
     tableWageRow:       (region: string) => `Průměrná mzda (${region})`,
@@ -172,7 +180,7 @@ const T = {
     ppStep1Income:      (region: string, year: number, income: string) =>
                           `Household net income (${region}, ${year}): ~${income}/month`,
     ppBurdenFormula:    'Burden',
-    ppStep2Head:        (year: number) => `2. Burden in ${year}`,
+    ppStep2Head:        (year: number) => `What it was in ${year}`,
     ppStep2Growth:      (region: string, year: number, pct: string, histPrice: string) =>
                           `Prices in ${region} grew ${pct}% since ${year} → estimated price back then: ${histPrice}`,
     ppStep2Payment:     (histPrice: string, rate: string, payment: string) =>
@@ -181,13 +189,21 @@ const T = {
     ppStep2Income:      (region: string, year: number, income: string) =>
                           `Household net income (${region}, ${year}): ~${income}/month`,
     ppWidgetBurdenRef:  (burden: string) => `widget Burden ${burden}`,
-    ppStep3Head:        '3. What price would match that burden today?',
+    ppStep3Head:        'What it would need to cost today',
     ppStep3Body:        (burden: string) =>
                           `For ${burden} burden at today\'s rates and income:`,
     ppWidgetPriceRef:   (arrow: string, pct: string) => `widget ${arrow}${pct}%`,
     ppResult:           (mult: string, year: number) =>
                           `Housing is ${mult} more burdensome today than in ${year}.`,
     ppWidgetLabel:      'Result in the widget:',
+    ppStep3Payment:     (equivPrice: string, rate: string, equivPayment: string) =>
+                          `Payment: ${equivPrice}, 10% down, rate ${rate}% → ${equivPayment}/month`,
+    ppStep3Conclusion:  (equivPayment: string, currentPayment: string) =>
+                          `Instead of today's ${currentPayment}/month, you'd pay ${equivPayment}/month.`,
+
+    // ── Inline widget — equiv section ─────────────────────────────────────────
+    widgetEquivLabel:   'Equivalent',
+    widgetEquivSep:     '↕ recalculated to today\'s terms',
 
     // ── Data sources table ────────────────────────────────────────────────────
     tableWageRow:       (region: string) => `Average wage (${region})`,

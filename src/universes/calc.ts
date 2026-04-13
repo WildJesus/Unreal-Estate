@@ -38,6 +38,7 @@ export interface BurdenComparison {
   // ── Comparison metrics ─────────────────────────────────────────────────────
   stressMultiplier: number;           // B_now / B_t, e.g. 1.68
   burdenEquivalentPrice: number;      // P_now × (B_t / B_now)
+  burdenEquivalentPayment: number;    // monthly payment on burdenEquivalentPrice at current rate
 
   // ── Rates used (for display) ───────────────────────────────────────────────
   currentRate: number;
@@ -129,6 +130,13 @@ export function computeBurdenComparison(
     currentPrice * (historicalBurdenRatio / currentBurdenRatio),
   );
 
+  // ── Step 7: Burden-equivalent monthly payment ─────────────────────────────
+  // Payment if you bought burdenEquivalentPrice today (current rate, 10% down).
+  // Identity: burdenEquivalentPayment / currentHouseholdNetIncome ≈ historicalBurdenRatio
+  const burdenEquivalentPayment = Math.round(
+    (1 - downPaymentRatio) * burdenEquivalentPrice * nowFactor,
+  );
+
   return {
     comparisonYear,
     currentPrice,
@@ -141,6 +149,7 @@ export function computeBurdenComparison(
     historicalHouseholdNetIncome,
     stressMultiplier,
     burdenEquivalentPrice,
+    burdenEquivalentPayment,
     currentRate:    nowEntry.mortgageRate,
     historicalRate: histEntry.mortgageRate,
   };

@@ -10,22 +10,28 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-12): v0.4.0 working
+## Current Status (2026-04-12): v0.5.0 working
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
 - Manifest V3: popup, content script on sreality.cz, service worker
 - Price detection: TreeWalker scan, handles sreality anti-scraping (U+200B, per-char obfuscated spans)
-- Orange price highlights (`su-hl` class) injected on all detected price elements
-- Main overlay (bottom-left): year selector pills (2000/2005/2010/2015/2020), minimize/close
+- No price highlights (`su-hl` class kept for tracking, visually invisible since v0.5.0)
+- Main overlay (bottom-left): year selector pills (2000/2005/2010/2015/2020) + range slider; default year 2015 on auto-open
 - Debug overlay (bottom-right): raw detected prices with source labels
-- Inline comparison widgets: 4-line stacked widget per price — burden %, burden-equivalent price, payment delta
+- Inline comparison widgets: 3-section stacked widget per price — today / historical / burden-equivalent
+  - Section 1: today's price + burden% + mortgage payment
+  - Section 2: historical price (↓X%) + burden% + historical mortgage (↓X%)  
+  - Section 3: burden-equivalent price (↓X%) + equivalent mortgage payment
+  - Map view: compact equiv-only variant stacked below price label
 - Info popup (ⓘ icon): Czech/English walkthrough tracing exact widget number derivation step-by-step
+- Detail comparison panel: matches inline widget 3-section layout exactly
 - Ad card removal: strips "TIP:" and "Reklama" cards from listing pages
 - MutationObserver (debounced 400ms): handles SPA navigation and lazy-loaded content
 - Location detection: CSS selector + text-node walker, 14 Czech kraje, longest-key-first `mapToRegion()`
 - i18n: Czech/English switcher in popup via `chrome.storage.sync`; live re-render via `storage.onChanged`
 - Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`
+- Widget immune to parent card :hover via `!important` on all color/text properties
 
 ## Math Model (v0.3.0 — burden ratio)
 ```
@@ -35,6 +41,7 @@ householdNetIncome_t = 2 × regionalWage_t × takeHomeRatio
 B_t = payment_t / householdNetIncome_t                 // burden ratio (0-1)
 stressMultiplier = B_now / B_t                         // e.g. 1.68× worse
 burdenEquivalentPrice = P_now × (B_t / B_now)          // "would need to cost X"
+burdenEquivalentPayment = (1-dp) × burdenEquivalentPrice × annuityFactor(rate_now, 360)
 ```
 MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, takeHomeRatio=0.77
 
@@ -59,7 +66,7 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
 - Font: Quicksand 400/600/700 via Google Fonts @import in injected style blocks
 - **Content script palette**: white bg `#ffffff`, primary text `#111111`, red accent `#dc2626`,
   green/red deltas `#16a34a`/`#dc2626`, muted greys `#777777`/`#aaaaaa`
-- **Popup palette**: `#1c1208` dark bg, `#f97316`/`#fb923c` orange accent, `#fef3c7` cream (unchanged)
+- **Popup palette**: white bg `#ffffff`, red accent `#dc2626`, muted grey `#888888` title (redesigned v0.5.0 to match widget)
 - Vibe: artisanal minimalism — boutique café menu meets mortgage calculator
 - No entrance animations; subtle hover transitions only; `tabular-nums` for all prices; font-weight 600 for body text in info popup
 

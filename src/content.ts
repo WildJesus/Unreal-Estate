@@ -8,7 +8,7 @@ import {
   formatMultiplier,
   parseCzechPrice,
 } from "./universes/calc";
-import { getCurrentYearData, getRegionalData, DATA_VERSION } from "./universes/data";
+import { getCurrentYearData, getRegionalData, getAvailableYears, DATA_VERSION } from "./universes/data";
 import { t, setLang, type Lang } from "./i18n";
 
 // Snapshot of current-year economic data. Evaluated once at module load — the
@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -124,6 +124,10 @@ function nthAncestor(el: Element, n: number): Element {
 
 function isDetailPage(): boolean {
   return window.location.pathname.startsWith("/detail/");
+}
+
+function isInMap(el: Element): boolean {
+  return !!el.closest('#map-container, [data-e2e="collapsed-map"]');
 }
 
 // ─── Listing page: general scan ──────────────────────────────────────────────
@@ -273,12 +277,7 @@ function removeHighlights() {
 // Shared between both overlays — injected once per overlay build.
 const SU_BASE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
-  .su-hl {
-    background-color: rgba(220, 38, 38, 0.10) !important;
-    border-radius: 3px !important;
-    outline: 1.5px solid rgba(220, 38, 38, 0.40) !important;
-    outline-offset: 2px !important;
-  }
+  /* .su-hl is used for price-element tracking only — no visible highlight */
 `;
 
 // ─── Debug Overlay ────────────────────────────────────────────────────────────
@@ -622,45 +621,34 @@ function buildMainOverlay(): HTMLElement {
       font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0.04em;
     }
 
-    /* Year input row */
-    #su-year-input-row { display: flex; gap: 6px; align-items: stretch; }
-
-    /* Year input */
-    #su-year-input {
-      flex: 1; min-width: 0; padding: 8px 11px;
-      background: #f5f5f5;
-      border: 1px solid rgba(0,0,0,0.15); border-radius: 8px;
-      color: #111111; font-family: 'Quicksand', system-ui, sans-serif;
-      font-size: 16px; font-weight: 700;
-      font-variant-numeric: tabular-nums; letter-spacing: 0.1em;
-      outline: none; transition: border-color 0.15s, background 0.15s;
+    /* Year slider */
+    #su-year-slider {
+      width: 100%; margin: 0;
+      -webkit-appearance: none; appearance: none;
+      height: 4px; border-radius: 2px;
+      background: linear-gradient(to right,
+        #dc2626 0%, #dc2626 var(--su-slider-pct, 0%),
+        #e5e5e5 var(--su-slider-pct, 0%), #e5e5e5 100%);
+      outline: none; cursor: pointer;
     }
-    #su-year-input::placeholder {
-      color: #aaaaaa; font-weight: 400; letter-spacing: 0.02em; font-size: 14px;
+    #su-year-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #dc2626; cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(220,38,38,0.35);
     }
-    #su-year-input:focus {
-      border-color: rgba(0,0,0,0.35); background: #ffffff;
+    #su-year-slider::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #dc2626; cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(220,38,38,0.35);
+      border: none;
     }
-    #su-year-input.su-valid {
-      border-color: #dc2626; background: rgba(220,38,38,0.04);
+    #su-year-slider-labels {
+      display: flex; justify-content: space-between; margin-top: -2px;
+      font-size: 10px; font-weight: 600; color: #aaaaaa; letter-spacing: 0.03em;
     }
-    #su-year-input.su-invalid {
-      border-color: rgba(220,38,38,0.5); background: rgba(220,38,38,0.04);
-    }
-
-    /* Confirm button */
-    #su-year-confirm {
-      width: 42px; flex-shrink: 0;
-      background: #f0f0f0;
-      border: 1px solid rgba(0,0,0,0.12); border-radius: 8px;
-      color: #aaaaaa; font-size: 19px; font-weight: 700;
-      cursor: not-allowed; transition: all 0.15s; font-family: inherit;
-    }
-    #su-year-confirm:not([disabled]) {
-      background: rgba(220,38,38,0.08); border-color: rgba(220,38,38,0.35);
-      color: #dc2626; cursor: pointer;
-    }
-    #su-year-confirm:not([disabled]):hover { background: #dc2626; color: #ffffff; }
 
     /* Year pills */
     #su-year-pills { display: flex; gap: 5px; }
@@ -744,13 +732,10 @@ function buildMainOverlay(): HTMLElement {
         </div>
         <div class="su-mo-section-content">
           <div id="su-year-selected-display">${t('moNoYearSelected')}</div>
-          <div id="su-year-input-row">
-            <input
-              type="text" id="su-year-input" maxlength="4"
-              placeholder="${t('moYearPlaceholder')}"
-              inputmode="numeric" autocomplete="off"
-            />
-            <button id="su-year-confirm" disabled title="${t('moConfirmYear')}">✓</button>
+          <input type="range" id="su-year-slider" min="0" step="1" value="0" />
+          <div id="su-year-slider-labels">
+            <span id="su-year-slider-min"></span>
+            <span id="su-year-slider-max"></span>
           </div>
           <div id="su-year-pills">
             <button class="su-year-pill" data-year="2000">2000</button>
@@ -791,20 +776,31 @@ function buildMainOverlay(): HTMLElement {
   const cityChk     = el.querySelector("#su-mo-city-chk") as HTMLInputElement;
   const yearSection = el.querySelector("#su-mo-year-section")!;
   const citySection = el.querySelector("#su-mo-city-section")!;
-  const yearInput   = el.querySelector("#su-year-input") as HTMLInputElement;
-  const confirmBtn  = el.querySelector("#su-year-confirm") as HTMLButtonElement;
+  const yearSlider  = el.querySelector("#su-year-slider") as HTMLInputElement;
   const yearDisplay = el.querySelector("#su-year-selected-display")!;
   const miniFilters = el.querySelector("#su-mo-mini-filters")!;
+
+  // Map slider integer index → actual dataset year (every position is valid).
+  const availableYears = getAvailableYears();
+  yearSlider.max = String(availableYears.length - 1);
+  (el.querySelector("#su-year-slider-min") as HTMLElement).textContent =
+    String(availableYears[0]);
+  (el.querySelector("#su-year-slider-max") as HTMLElement).textContent =
+    String(availableYears[availableYears.length - 1]);
+
+  function updateSliderFill() {
+    const idx = parseInt(yearSlider.value);
+    const pct = availableYears.length > 1
+      ? (idx / (availableYears.length - 1)) * 100
+      : 0;
+    yearSlider.style.setProperty('--su-slider-pct', `${pct}%`);
+  }
 
   function updateMiniFilters() {
     const parts: string[] = [];
     if (yearChk.checked && selectedYear !== null) parts.push(String(selectedYear));
     if (cityChk.checked) parts.push("Praha");
     miniFilters.textContent = parts.length > 0 ? "· " + parts.join(" · ") : "";
-  }
-
-  function isValidYear(y: number): boolean {
-    return y >= 1990 && y <= new Date().getFullYear() - 1;
   }
 
   function selectYear(year: number | null) {
@@ -828,11 +824,6 @@ function buildMainOverlay(): HTMLElement {
     renderListingComparisons();
   }
 
-  function confirmYear() {
-    const y = parseInt(yearInput.value);
-    if (yearInput.value.length === 4 && isValidYear(y)) selectYear(y);
-  }
-
   yearChk.addEventListener("change", () => {
     yearSection.classList.toggle("su-disabled", !yearChk.checked);
     updateMiniFilters();
@@ -849,32 +840,18 @@ function buildMainOverlay(): HTMLElement {
     updateMiniFilters();
   });
 
-  // Validate only on input — do NOT auto-select; require explicit confirm.
-  yearInput.addEventListener("input", () => {
-    yearInput.value = yearInput.value.replace(/\D/g, "").slice(0, 4);
-    // Clear any existing selection while the user is editing.
-    if (selectedYear !== null) selectYear(null);
-    const y = parseInt(yearInput.value);
-    const is4 = yearInput.value.length === 4;
-    const valid = is4 && isValidYear(y);
-    yearInput.classList.toggle("su-valid", valid);
-    yearInput.classList.toggle("su-invalid", is4 && !valid);
-    confirmBtn.disabled = !valid;
+  // Slider fires selectYear immediately — no confirm step needed.
+  yearSlider.addEventListener("input", () => {
+    updateSliderFill();
+    selectYear(availableYears[parseInt(yearSlider.value)]);
   });
 
-  yearInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") confirmYear();
-  });
-  confirmBtn.addEventListener("click", confirmYear);
-
-  // Pills are already an explicit click — no confirm step needed.
+  // Pills snap the slider to the matching index and call selectYear.
   el.querySelectorAll<HTMLElement>(".su-year-pill").forEach((pill) => {
     pill.addEventListener("click", () => {
       const year = parseInt(pill.dataset.year ?? "");
-      yearInput.value = String(year);
-      yearInput.classList.remove("su-invalid");
-      yearInput.classList.add("su-valid");
-      confirmBtn.disabled = false;
+      const idx = availableYears.indexOf(year);
+      if (idx >= 0) { yearSlider.value = String(idx); updateSliderFill(); }
       selectYear(year);
     });
   });
@@ -891,9 +868,8 @@ function buildMainOverlay(): HTMLElement {
 
   // Restore selected year if one was active before a rebuild (e.g. language switch).
   if (activeYear !== null) {
-    yearInput.value = String(activeYear);
-    yearInput.classList.add("su-valid");
-    confirmBtn.disabled = false;
+    const idx = availableYears.indexOf(activeYear);
+    if (idx >= 0) { yearSlider.value = String(idx); updateSliderFill(); }
     yearDisplay.innerHTML = `
       <span class="su-year-display-label">${t('moSelectedYear')}</span>
       <span class="su-year-display-number">${activeYear}</span>
@@ -940,13 +916,29 @@ function ensureComparisonCSS() {
     .su-comp-widget {
       display: inline-flex; flex-direction: column; gap: 4px;
       margin-top: 5px; padding: 7px 12px 7px 10px;
-      background: #ffffff;
-      border-left: 3px solid #dc2626;
+      background: #ffffff !important;
+      border-left: 3px solid #dc2626 !important;
       border-radius: 0 9px 9px 0;
-      font-family: 'Quicksand', system-ui, sans-serif;
-      line-height: 1;
+      font-family: 'Quicksand', system-ui, sans-serif !important;
+      line-height: 1 !important;
       box-shadow: 0 1px 6px rgba(0,0,0,0.10);
       transition: opacity 0.2s;
+      color: #111111 !important;
+    }
+    /* Map variant: block-level so it stacks below the price label;
+       width: max-content prevents stretching inside the marker container. */
+    .su-comp-widget-map {
+      display: flex !important; flex-direction: column !important;
+      width: max-content;
+      align-self: flex-start;
+      margin-top: 3px; padding: 4px 8px 4px 7px; gap: 2px;
+      border-left-width: 2px !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    }
+    /* Block text-decoration and color cascade from parent card/link hover states */
+    .su-comp-widget, .su-comp-widget * {
+      text-decoration: none !important;
+      font-style: normal !important;
     }
     .su-cw-row {
       display: flex; align-items: center; gap: 6px; white-space: nowrap;
@@ -955,50 +947,57 @@ function ensureComparisonCSS() {
       border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 2px 0;
     }
     .su-cw-year {
-      font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
-      color: #ffffff; background: #dc2626;
-      border: 1px solid #dc2626;
+      font-size: 12px; font-weight: 700 !important; letter-spacing: 0.04em;
+      color: #ffffff !important; background: #dc2626 !important;
+      border: 1px solid #dc2626 !important;
       padding: 2px 7px; border-radius: 4px;
       font-variant-numeric: tabular-nums; flex-shrink: 0;
     }
     .su-cw-year-hist {
-      color: #dc2626; background: rgba(220,38,38,0.08);
-      border-color: rgba(220,38,38,0.30);
+      color: #dc2626 !important; background: rgba(220,38,38,0.08) !important;
+      border-color: rgba(220,38,38,0.30) !important;
     }
     .su-cw-price {
-      font-size: 14px; font-weight: 700; color: #111111;
+      font-size: 14px; font-weight: 700 !important; color: #111111 !important;
       font-variant-numeric: tabular-nums;
     }
     .su-cw-price-hist {
-      font-size: 14px; font-weight: 700; color: #dc2626;
+      font-size: 14px; font-weight: 700 !important; color: #dc2626 !important;
       font-variant-numeric: tabular-nums;
     }
     .su-cw-burden {
-      font-size: 11px; font-weight: 600; color: #777777;
+      font-size: 11px; font-weight: 600 !important; color: #777777 !important;
     }
     .su-cw-mort-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      color: #aaaaaa; flex-shrink: 0;
+      font-size: 10px; font-weight: 700 !important; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #aaaaaa !important; flex-shrink: 0;
     }
     .su-cw-mort {
-      font-size: 13px; font-weight: 700; color: #555555;
+      font-size: 13px; font-weight: 700 !important; color: #555555 !important;
       font-variant-numeric: tabular-nums;
     }
+    .su-cw-equiv-label {
+      font-size: 10px; font-weight: 700 !important; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #dc2626 !important; flex-shrink: 0;
+    }
+    .su-cw-equiv-sep {
+      font-size: 9px; font-weight: 600 !important; color: #bbbbbb !important; letter-spacing: 0.02em;
+    }
     .su-cw-delta {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+      font-size: 10px; font-weight: 700 !important; letter-spacing: 0.02em;
       padding: 1px 4px; border-radius: 3px;
       font-variant-numeric: tabular-nums; flex-shrink: 0;
     }
-    .su-cw-dn { color: #16a34a; background: rgba(22,163,74,0.10); }
-    .su-cw-up { color: #dc2626; background: rgba(220,38,38,0.10); }
+    .su-cw-dn { color: #16a34a !important; background: rgba(22,163,74,0.10) !important; }
+    .su-cw-up { color: #dc2626 !important; background: rgba(220,38,38,0.10) !important; }
     .su-cw-info {
-      color: #bbbbbb; cursor: pointer;
+      color: #bbbbbb !important; cursor: pointer;
       margin-left: auto; flex-shrink: 0;
-      background: none; border: none; padding: 0; line-height: 0;
+      background: none !important; border: none; padding: 0; line-height: 0;
       display: inline-flex; align-items: center; justify-content: center;
       transition: color 0.15s;
     }
-    .su-cw-info:hover { color: #555555; }
+    .su-cw-info:hover { color: #555555 !important; }
 
     /* ── Info popup ── */
     #su-info-popup {
@@ -1214,17 +1213,23 @@ function renderPopupContent(ctx: PopupCtx): void {
   const histRatePct      = (c.historicalRate * 100).toFixed(2);
   const nowRatePct       = (c.currentRate    * 100).toFixed(2);
 
-  // ── Derived deltas for the widget preview ─────────────────────────────────
-  const priceDeltaPct = ((c.burdenEquivalentPrice    - c.currentPrice)            / c.currentPrice)            * 100;
-  const payDeltaPct   = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+  // ── Derived deltas for the widget preview and walkthrough ────────────────
+  // Section 2 (historical): hist price/payment vs. current
+  const histPriceDeltaPct  = ((c.historicalPrice           - c.currentPrice)            / c.currentPrice)            * 100;
+  const histPayDeltaPct    = ((c.historicalMonthlyPayment  - c.currentMonthlyPayment)   / c.currentMonthlyPayment)   * 100;
+  // Section 3 (equiv): burden-equivalent price/payment vs. current
+  const equivPriceDeltaPct = ((c.burdenEquivalentPrice     - c.currentPrice)            / c.currentPrice)            * 100;
+  const equivPayDeltaPct   = ((c.burdenEquivalentPayment   - c.currentMonthlyPayment)   / c.currentMonthlyPayment)   * 100;
 
   // ── Body: step-by-step walkthrough ────────────────────────────────────────
   const body = popup.querySelector<HTMLElement>('#su-popup-body')!;
 
-  const absPayDelta   = Math.abs(payDeltaPct).toFixed(0);
-  const absPriceDelta = Math.abs(priceDeltaPct).toFixed(0);
-  const payArrow      = payDeltaPct   <= 0 ? '↓' : '↑';
-  const priceArrow    = priceDeltaPct <= 0 ? '↓' : '↑';
+  const histPayArrow       = histPayDeltaPct    <= 0 ? '↓' : '↑';
+  const absHistPayDelta    = Math.abs(histPayDeltaPct).toFixed(0);
+  const equivPriceArrow    = equivPriceDeltaPct <= 0 ? '↓' : '↑';
+  const absEquivPriceDelta = Math.abs(equivPriceDeltaPct).toFixed(0);
+  const equivPayArrow      = equivPayDeltaPct   <= 0 ? '↓' : '↑';
+  const absEquivPayDelta   = Math.abs(equivPayDeltaPct).toFixed(0);
 
   body.innerHTML = `
     ${isEstimated
@@ -1253,7 +1258,7 @@ function renderPopupContent(ctx: PopupCtx): void {
       <div class="su-pp-step-body">
         ${t('ppStep2Growth', regionName, c.comparisonYear, priceGrowthPct, formatCZK(c.historicalPrice))}<br>
         ${t('ppStep2Payment', formatCZK(c.historicalPrice), histRatePct, formatCZK(c.historicalMonthlyPayment))}
-        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', payArrow, absPayDelta)}</span><br>
+        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', histPayArrow, absHistPayDelta)}</span><br>
         ${t('ppStep2Income', regionName, c.comparisonYear, formatCZK(c.historicalHouseholdNetIncome))}<br>
         <code class="su-pp-formula">
           ${t('ppBurdenFormula')} = ${formatCZK(c.historicalMonthlyPayment)} ÷ ${formatCZK(c.historicalHouseholdNetIncome)}
@@ -1270,8 +1275,11 @@ function renderPopupContent(ctx: PopupCtx): void {
         <code class="su-pp-formula">
           ${formatCZK(c.currentPrice)} × (${formatBurdenPercent(c.historicalBurdenRatio)} ÷ ${formatBurdenPercent(c.currentBurdenRatio)})
           = <span class="su-pp-em">${formatCZK(c.burdenEquivalentPrice)}</span>
-          <span class="su-pp-widget-ref">${t('ppWidgetPriceRef', priceArrow, absPriceDelta)}</span>
+          <span class="su-pp-widget-ref">${t('ppWidgetPriceRef', equivPriceArrow, absEquivPriceDelta)}</span>
         </code>
+        ${t('ppStep3Payment', formatCZK(c.burdenEquivalentPrice), nowRatePct, formatCZK(c.burdenEquivalentPayment))}
+        <span class="su-pp-widget-ref">${t('ppWidgetMortRef', equivPayArrow, absEquivPayDelta)}</span><br>
+        <span class="su-pp-step-note">${t('ppStep3Conclusion', formatCZK(c.burdenEquivalentPayment), formatCZK(c.currentMonthlyPayment))}</span>
       </div>
     </div>
 
@@ -1293,14 +1301,26 @@ function renderPopupContent(ctx: PopupCtx): void {
       <hr class="su-cw-divider" />
       <div class="su-cw-row">
         <span class="su-cw-year su-cw-year-hist">${c.comparisonYear}</span>
-        ${cwDelta(priceDeltaPct)}
-        <span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span>
+        ${cwDelta(histPriceDeltaPct)}
+        <span class="su-cw-price-hist">${formatCZK(c.historicalPrice)}</span>
         <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>
       </div>
       <div class="su-cw-row">
         <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
-        ${cwDelta(payDeltaPct)}
+        ${cwDelta(histPayDeltaPct)}
         <span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>
+      </div>
+      <hr class="su-cw-divider" />
+      <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
+      <div class="su-cw-row">
+        <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
+        ${cwDelta(equivPriceDeltaPct)}
+        <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
+      </div>
+      <div class="su-cw-row">
+        <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
+        ${cwDelta(equivPayDeltaPct)}
+        <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
       </div>
     </div>
   `;
@@ -1424,60 +1444,92 @@ function renderListingComparisons() {
       const nowRegional  = getRegionalData(CURRENT.year, region);
       const histRegional = getRegionalData(activeYear, region);
 
-      // priceDelta and burdenDelta are mathematically identical (equiv price IS
-      // derived from the burden ratio), so we only show one delta.
-      const priceDeltaPct = ((c.burdenEquivalentPrice    - currentPrice)            / currentPrice)            * 100;
-      const payDeltaPct   = ((c.historicalMonthlyPayment - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+      // Deltas — all vs. current (line 1) values.
+      const histPriceDeltaPct  = ((c.historicalPrice           - currentPrice)            / currentPrice)            * 100;
+      const histPayDeltaPct    = ((c.historicalMonthlyPayment  - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+      const equivPriceDeltaPct = ((c.burdenEquivalentPrice     - currentPrice)            / currentPrice)            * 100;
+      const equivPayDeltaPct   = ((c.burdenEquivalentPayment   - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
 
-      widget.innerHTML =
-        // Line 1: current year — price + burden
-        `<div class="su-cw-row">` +
-          `<span class="su-cw-year">${CURRENT.year}</span>` +
-          `<span class="su-cw-price">${formatCZK(currentPrice)}</span>` +
-          `<span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.currentBurdenRatio)})</span>` +
-          `<button class="su-cw-info" title="${t('widgetInfoTooltip')}">` +
-            `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">` +
-              `<circle cx="7" cy="7" r="6.25" stroke="currentColor" stroke-width="1.5"/>` +
-              `<line x1="7" y1="6.5" x2="7" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
-              `<circle cx="7" cy="4.25" r="0.85" fill="currentColor"/>` +
-            `</svg>` +
-          `</button>` +
-        `</div>` +
-        // Line 2: current mortgage
-        `<div class="su-cw-row">` +
-          `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
-          `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>` +
-        `</div>` +
-        `<hr class="su-cw-divider" />` +
-        // Line 3: comparison year — delta + equiv price + burden
-        `<div class="su-cw-row">` +
-          `<span class="su-cw-year su-cw-year-hist">${activeYear}</span>` +
-          `${cwDelta(priceDeltaPct)}` +
-          `<span class="su-cw-price-hist">${formatCZK(c.burdenEquivalentPrice)}</span>` +
-          `<span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>` +
-        `</div>` +
-        // Line 4: historical mortgage + delta
-        `<div class="su-cw-row">` +
-          `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
-          `${cwDelta(payDeltaPct)}` +
-          `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>` +
-        `</div>`;
+      if (isInMap(priceEl)) {
+        // ── Map pin variant: equiv section only, no ⓘ ─────────────────────
+        widget.classList.add('su-comp-widget-map');
+        widget.innerHTML =
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>` +
+            `${cwDelta(equivPriceDeltaPct)}` +
+            `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
+          `</div>` +
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
+            `${cwDelta(equivPayDeltaPct)}` +
+            `<span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>` +
+          `</div>`;
+      } else {
+        // ── Full 3-section variant ─────────────────────────────────────────
+        const infoSvg =
+          `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">` +
+            `<circle cx="7" cy="7" r="6.25" stroke="currentColor" stroke-width="1.5"/>` +
+            `<line x1="7" y1="6.5" x2="7" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
+            `<circle cx="7" cy="4.25" r="0.85" fill="currentColor"/>` +
+          `</svg>`;
 
-      // Attach popup context to the ⓘ button and wire up the click handler.
-      const infoBtn = widget.querySelector<HTMLElement>('.su-cw-info')!;
-      const popupCtx: PopupCtx = {
-        c, region, isEstimated,
-        nowIndex:  nowRegional.priceIndex,
-        histIndex: histRegional.priceIndex,
-        nowWage:   nowRegional.avgWage,
-        histWage:  histRegional.avgWage,
-      };
-      _popupCtx.set(infoBtn, popupCtx);
-      infoBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const ctx = _popupCtx.get(infoBtn);
-        if (ctx) showInfoPopup(infoBtn, ctx);
-      });
+        widget.innerHTML =
+          // ── Section 1: today ──────────────────────────────────────────────
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-year">${CURRENT.year}</span>` +
+            `<span class="su-cw-price">${formatCZK(currentPrice)}</span>` +
+            `<span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.currentBurdenRatio)})</span>` +
+            `<button class="su-cw-info" title="${t('widgetInfoTooltip')}">${infoSvg}</button>` +
+          `</div>` +
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
+            `<span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>` +
+          `</div>` +
+
+          // ── Section 2: historical reality ─────────────────────────────────
+          `<hr class="su-cw-divider" />` +
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-year su-cw-year-hist">${activeYear}</span>` +
+            `${cwDelta(histPriceDeltaPct)}` +
+            `<span class="su-cw-price-hist">${formatCZK(c.historicalPrice)}</span>` +
+            `<span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>` +
+          `</div>` +
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
+            `${cwDelta(histPayDeltaPct)}` +
+            `<span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>` +
+          `</div>` +
+
+          // ── Section 3: burden-equivalent — the punchline ──────────────────
+          `<hr class="su-cw-divider" />` +
+          `<div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>` +
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>` +
+            `${cwDelta(equivPriceDeltaPct)}` +
+            `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
+          `</div>` +
+          `<div class="su-cw-row">` +
+            `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
+            `${cwDelta(equivPayDeltaPct)}` +
+            `<span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>` +
+          `</div>`;
+
+        // Attach popup context to the ⓘ button and wire up the click handler.
+        const infoBtn = widget.querySelector<HTMLElement>('.su-cw-info')!;
+        const popupCtx: PopupCtx = {
+          c, region, isEstimated,
+          nowIndex:  nowRegional.priceIndex,
+          histIndex: histRegional.priceIndex,
+          nowWage:   nowRegional.avgWage,
+          histWage:  histRegional.avgWage,
+        };
+        _popupCtx.set(infoBtn, popupCtx);
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const ctx = _popupCtx.get(infoBtn);
+          if (ctx) showInfoPopup(infoBtn, ctx);
+        });
+      }
     } catch {
       widget.innerHTML =
         `<span class="su-cw-year">${activeYear}</span>` +
@@ -1528,43 +1580,48 @@ function updateDetailComparison() {
   try {
     const c = computeBurdenComparison(currentPrice, activeYear, region);
 
-    const stressLabel = c.stressMultiplier >= 1.0
-      ? t('compMoreBurden', formatMultiplier(c.stressMultiplier))
-      : t('compLessBurden', formatMultiplier(1 / c.stressMultiplier));
-    const stressCls = c.stressMultiplier >= 1.0 ? "su-comp-pct-up" : "su-comp-pct-down";
-
-    const equivPct = ((c.burdenEquivalentPrice - currentPrice) / currentPrice) * 100;
-    const equivSign = equivPct < 0 ? "−" : "+";
-    const equivCls  = equivPct < 0 ? "su-comp-pct-down" : "su-comp-pct-up";
+    const histPriceDeltaPct  = ((c.historicalPrice           - currentPrice)            / currentPrice)            * 100;
+    const histPayDeltaPct    = ((c.historicalMonthlyPayment  - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
+    const equivPriceDeltaPct = ((c.burdenEquivalentPrice     - currentPrice)            / currentPrice)            * 100;
+    const equivPayDeltaPct   = ((c.burdenEquivalentPayment   - c.currentMonthlyPayment) / c.currentMonthlyPayment) * 100;
 
     content.innerHTML = `
-      <div class="su-comp-grid">
-        <div class="su-comp-row">
-          <span class="su-comp-label">${t('compBurdenNow')}</span>
-          <span class="su-comp-value">${formatBurdenPercent(c.currentBurdenRatio)}</span>
+      <div class="su-pp-widget-preview">
+        <div class="su-cw-row">
+          <span class="su-cw-year">${CURRENT.year}</span>
+          <span class="su-cw-price">${formatCZK(currentPrice)}</span>
+          <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.currentBurdenRatio)})</span>
         </div>
-        <div class="su-comp-row">
-          <span class="su-comp-label">${activeYear}</span>
-          <span class="su-comp-value su-comp-value-adj">${formatBurdenPercent(c.historicalBurdenRatio)}</span>
-          <span class="su-comp-pct-tag ${stressCls}">${stressLabel}</span>
+        <div class="su-cw-row">
+          <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
+          <span class="su-cw-mort">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>
         </div>
-        <hr class="su-comp-divider" />
-        <div class="su-comp-row">
-          <span class="su-comp-label">${t('compEquivPrice')}</span>
-          <span class="su-comp-value su-comp-value-adj">${formatCZK(c.burdenEquivalentPrice)}</span>
-          <span class="su-comp-pct-tag ${equivCls}">${equivSign}${Math.abs(equivPct).toFixed(1)}%</span>
+        <hr class="su-cw-divider" />
+        <div class="su-cw-row">
+          <span class="su-cw-year su-cw-year-hist">${activeYear}</span>
+          ${cwDelta(histPriceDeltaPct)}
+          <span class="su-cw-price-hist">${formatCZK(c.historicalPrice)}</span>
+          <span class="su-cw-burden">(${t('widgetBurden')} ${formatBurdenPercent(c.historicalBurdenRatio)})</span>
         </div>
-        <hr class="su-comp-divider" />
-        <div class="su-comp-row">
-          <span class="su-comp-label">${t('compPaymentNow')}</span>
-          <span class="su-comp-value">${formatCZK(c.currentMonthlyPayment)}${t('widgetPerMonth')}</span>
+        <div class="su-cw-row">
+          <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
+          ${cwDelta(histPayDeltaPct)}
+          <span class="su-cw-mort">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>
         </div>
-        <div class="su-comp-row">
-          <span class="su-comp-label">${t('compPaymentYear', activeYear)}</span>
-          <span class="su-comp-value su-comp-value-adj">${formatCZK(c.historicalMonthlyPayment)}${t('widgetPerMonth')}</span>
+        <hr class="su-cw-divider" />
+        <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
+        <div class="su-cw-row">
+          <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
+          ${cwDelta(equivPriceDeltaPct)}
+          <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
+        </div>
+        <div class="su-cw-row">
+          <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
+          ${cwDelta(equivPayDeltaPct)}
+          <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
         </div>
         ${isEstimated
-          ? `<div style="font-size:11px;color:#9a8268;text-align:center;margin-top:4px;">${t('compRegionEst')}</div>`
+          ? `<div class="su-comp-nodata" style="margin-top:4px;">${t('compRegionEst')}</div>`
           : ""}
       </div>
     `;
@@ -1638,7 +1695,10 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 chrome.storage.sync.get({ autoOpen: true, lang: 'cs' }, (settings) => {
   setLang((settings.lang as Lang) ?? 'cs');
-  if (settings.autoOpen) showMainOverlay();
+  if (settings.autoOpen) {
+    activeYear = 2015;  // default comparison year on page load
+    showMainOverlay();
+  }
 });
 
 // Dismiss the info popup when clicking anywhere outside it.
