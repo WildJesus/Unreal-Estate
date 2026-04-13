@@ -16,7 +16,7 @@ import { t, setLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "0.5.4";
+const VERSION = "0.5.5";
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -1002,6 +1002,9 @@ function ensureComparisonCSS() {
     .su-cw-equiv-sep {
       font-size: 9px; font-weight: 600 !important; color: #bbbbbb !important; letter-spacing: 0.02em;
     }
+    .su-cw-equiv-delta {
+      display: flex !important; justify-content: center; padding: 1px 0;
+    }
     .su-cw-delta {
       font-size: 10px; font-weight: 700 !important; letter-spacing: 0.02em;
       padding: 1px 4px; border-radius: 3px;
@@ -1238,7 +1241,6 @@ function renderPopupContent(ctx: PopupCtx): void {
   const histPayDeltaPct    = ((c.historicalMonthlyPayment  - c.currentMonthlyPayment)   / c.currentMonthlyPayment)   * 100;
   // Section 3 (equiv): burden-equivalent price/payment vs. current
   const equivPriceDeltaPct = ((c.burdenEquivalentPrice     - c.currentPrice)            / c.currentPrice)            * 100;
-  const equivPayDeltaPct   = ((c.burdenEquivalentPayment   - c.currentMonthlyPayment)   / c.currentMonthlyPayment)   * 100;
 
   // ── Body: step-by-step walkthrough ────────────────────────────────────────
   const body = popup.querySelector<HTMLElement>('#su-popup-body')!;
@@ -1247,8 +1249,6 @@ function renderPopupContent(ctx: PopupCtx): void {
   const absHistPayDelta    = Math.abs(histPayDeltaPct).toFixed(0);
   const equivPriceArrow    = equivPriceDeltaPct <= 0 ? '↓' : '↑';
   const absEquivPriceDelta = Math.abs(equivPriceDeltaPct).toFixed(0);
-  const equivPayArrow      = equivPayDeltaPct   <= 0 ? '↓' : '↑';
-  const absEquivPayDelta   = Math.abs(equivPayDeltaPct).toFixed(0);
 
   body.innerHTML = `
     ${isEstimated
@@ -1333,12 +1333,11 @@ function renderPopupContent(ctx: PopupCtx): void {
       <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
       <div class="su-cw-row">
         <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
-        ${cwDelta(equivPriceDeltaPct)}
         <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
       </div>
+      <div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>
       <div class="su-cw-row">
         <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
-        ${cwDelta(equivPayDeltaPct)}
         <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
       </div>
     </div>
@@ -1475,12 +1474,11 @@ function renderListingComparisons() {
         widget.innerHTML =
           `<div class="su-cw-row">` +
             `<span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>` +
-            `${cwDelta(equivPriceDeltaPct)}` +
             `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
           `</div>` +
+          `<div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>` +
           `<div class="su-cw-row">` +
             `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
-            `${cwDelta(equivPayDeltaPct)}` +
             `<span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>` +
           `</div>`;
       } else {
@@ -1524,12 +1522,11 @@ function renderListingComparisons() {
           `<div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>` +
           `<div class="su-cw-row">` +
             `<span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>` +
-            `${cwDelta(equivPriceDeltaPct)}` +
             `<span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>` +
           `</div>` +
+          `<div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>` +
           `<div class="su-cw-row">` +
             `<span class="su-cw-mort-label">${t('widgetMortgage')}</span>` +
-            `${cwDelta(equivPayDeltaPct)}` +
             `<span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>` +
           `</div>`;
 
@@ -1631,12 +1628,11 @@ function updateDetailComparison() {
         <div class="su-cw-equiv-sep">${t('widgetEquivSep')}</div>
         <div class="su-cw-row">
           <span class="su-cw-equiv-label">${t('widgetEquivLabel')}</span>
-          ${cwDelta(equivPriceDeltaPct)}
           <span class="su-cw-price">${formatCZK(c.burdenEquivalentPrice)}</span>
         </div>
+        <div class="su-cw-equiv-delta">${cwDelta(equivPriceDeltaPct)}</div>
         <div class="su-cw-row">
           <span class="su-cw-mort-label">${t('widgetMortgage')}</span>
-          ${cwDelta(equivPayDeltaPct)}
           <span class="su-cw-mort">${formatCZK(c.burdenEquivalentPayment)}${t('widgetPerMonth')}</span>
         </div>
         ${isEstimated
