@@ -10,14 +10,17 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-12): v0.5.0 working
+## Current Status (2026-04-13): v0.5.3 working
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
 - Manifest V3: popup, content script on sreality.cz, service worker
 - Price detection: TreeWalker scan, handles sreality anti-scraping (U+200B, per-char obfuscated spans)
 - No price highlights (`su-hl` class kept for tracking, visually invisible since v0.5.0)
-- Main overlay (bottom-left): year selector pills (2000/2005/2010/2015/2020) + range slider; default year 2015 on auto-open
+- Main overlay (bottom-left, 360px wide):
+  - Year selector pills (2000/2005/2010/2015/2020) + range slider; default year 2015 on auto-open
+  - Auto-opens **minimized** on page load; mini bar shows year as red clickable pill → click expands
+  - Mini bar: "SREALITKY UNIVERSES · [2015]" — clicking the year pill expands the overlay
 - Debug overlay (bottom-right): raw detected prices with source labels
 - Inline comparison widgets: 3-section stacked widget per price — today / historical / burden-equivalent
   - Section 1: today's price + burden% + mortgage payment
@@ -26,12 +29,18 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
   - Map view: compact equiv-only variant stacked below price label
 - Info popup (ⓘ icon): Czech/English walkthrough tracing exact widget number derivation step-by-step
 - Detail comparison panel: matches inline widget 3-section layout exactly
+- Info popup header: `Price → EquivPrice · Region` (no house icon, uniform font)
 - Ad card removal: strips "TIP:" and "Reklama" cards from listing pages
 - MutationObserver (debounced 400ms): handles SPA navigation and lazy-loaded content
 - Location detection: CSS selector + text-node walker, 14 Czech kraje, longest-key-first `mapToRegion()`
 - i18n: Czech/English switcher in popup via `chrome.storage.sync`; live re-render via `storage.onChanged`
 - Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`
 - Widget immune to parent card :hover via `!important` on all color/text properties
+
+### Known state / two-variable pattern to watch
+`buildMainOverlay()` has a local `selectedYear` and a module-level `activeYear` that must stay in sync.
+`selectYear()` updates both. The restore block at the end of `buildMainOverlay()` must explicitly set
+`selectedYear = activeYear` before calling `updateMiniFilters()`, or the mini bar renders nothing.
 
 ## Math Model (v0.3.0 — burden ratio)
 ```
