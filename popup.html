@@ -9,11 +9,12 @@
 
     body {
       width: 240px;
-      background: #1c1208;
-      color: #fef3c7;
+      background: #ffffff;
+      color: #111111;
       font-family: 'Quicksand', system-ui, sans-serif;
       font-size: 13px;
       padding: 14px;
+      border: 1px solid rgba(0,0,0,0.10);
     }
 
     #su-popup-header {
@@ -24,16 +25,17 @@
     }
 
     #su-popup-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
-      color: #fef3c7;
-      letter-spacing: 0.01em;
+      color: #888888;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     /* Divider */
     .su-divider {
       border: none;
-      border-top: 1px solid rgba(249, 115, 22, 0.13);
+      border-top: 1px solid rgba(0,0,0,0.08);
       margin: 0;
     }
 
@@ -42,12 +44,12 @@
       align-items: center;
       justify-content: space-between;
       padding: 10px 0;
-      border-bottom: 1px solid rgba(249, 115, 22, 0.09);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
     }
     .su-row:last-of-type { border-bottom: none; }
 
     .su-label {
-      color: #d4b896;
+      color: #555555;
       font-size: 12px;
       font-weight: 600;
     }
@@ -63,8 +65,8 @@
     .su-slider {
       position: absolute;
       inset: 0;
-      background: rgba(249, 115, 22, 0.12);
-      border: 1px solid rgba(249, 115, 22, 0.22);
+      background: rgba(0,0,0,0.06);
+      border: 1px solid rgba(0,0,0,0.14);
       border-radius: 20px;
       cursor: pointer;
       transition: background 0.2s, border-color 0.2s;
@@ -76,24 +78,24 @@
       height: 13px;
       left: 3px;
       top: 3px;
-      background: #6b5a44;
+      background: #cccccc;
       border-radius: 50%;
       transition: transform 0.2s, background 0.2s;
     }
     .su-toggle input:checked + .su-slider {
-      background: rgba(249, 115, 22, 0.25);
-      border-color: rgba(249, 115, 22, 0.55);
+      background: rgba(220,38,38,0.10);
+      border-color: rgba(220,38,38,0.40);
     }
     .su-toggle input:checked + .su-slider::before {
       transform: translateX(16px);
-      background: #fb923c;
+      background: #dc2626;
     }
 
     .su-btn {
       width: 100%;
       padding: 10px 0;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       font-family: 'Quicksand', system-ui, sans-serif;
       font-size: 12px;
       font-weight: 700;
@@ -103,28 +105,80 @@
     }
     #launch-btn {
       margin-top: 13px;
-      background: #f97316;
-      color: #1c1208;
+      background: #dc2626;
+      color: #ffffff;
     }
-    #launch-btn:hover { background: #fb923c; }
-    #launch-btn:active { background: #ea6c10; }
+    #launch-btn:hover { background: #b91c1c; }
+    #launch-btn:active { background: #991b1b; }
     #debug-btn {
       margin-top: 6px;
-      background: rgba(249, 115, 22, 0.1);
-      color: #a38d72;
-      border: 1px solid rgba(249, 115, 22, 0.2);
+      background: rgba(220,38,38,0.05);
+      color: #777777;
+      border: 1px solid rgba(220,38,38,0.12);
     }
-    #debug-btn:hover { background: rgba(249, 115, 22, 0.18); color: #d4b896; }
+    #debug-btn:hover { background: rgba(220,38,38,0.10); color: #555555; }
 
     #status {
       margin-top: 9px;
       font-size: 10px;
       font-weight: 600;
-      color: #6b5a44;
+      color: #aaaaaa;
       text-align: center;
       min-height: 14px;
       letter-spacing: 0.03em;
     }
+
+    /* Language switcher */
+    .su-lang-pills {
+      display: flex;
+      gap: 4px;
+    }
+    .su-lang-btn {
+      background: rgba(220,38,38,0.04);
+      border: 1px solid rgba(220,38,38,0.12);
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      padding: 4px 9px;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .su-lang-btn:hover {
+      background: rgba(220,38,38,0.10);
+    }
+    .su-lang-btn.active {
+      background: rgba(220,38,38,0.10);
+      border-color: rgba(220,38,38,0.45);
+      box-shadow: 0 0 0 2px rgba(220,38,38,0.10);
+    }
+
+    /* Srealitky launch link */
+    #launch-sreality-link {
+      color: #555555;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #launch-sreality-link:hover { color: #dc2626; }
+    #launch-sreality-link .su-ext-arrow {
+      font-size: 10px; color: #aaaaaa;
+    }
+    #launch-sreality-link:hover .su-ext-arrow { color: #dc2626; }
+
+    /* About button */
+    #about-btn {
+      margin-top: 6px;
+      background: rgba(220,38,38,0.05);
+      color: #777777;
+      border: 1px solid rgba(220,38,38,0.12);
+    }
+    #about-btn:hover { background: rgba(220,38,38,0.10); color: #555555; }
   </style>
 </head>
 <body>
@@ -135,15 +189,30 @@
   <hr class="su-divider" />
 
   <div class="su-row">
-    <span class="su-label">Auto turn on</span>
+    <span class="su-label" id="label-auto-open">Automaticky zapnout</span>
     <label class="su-toggle">
       <input type="checkbox" id="auto-open" />
       <span class="su-slider"></span>
     </label>
   </div>
 
-  <button id="launch-btn" class="su-btn">Launch overlay</button>
-  <button id="debug-btn" class="su-btn">Launch debugger</button>
+  <div class="su-row">
+    <span class="su-label" id="label-lang">Jazyk</span>
+    <div class="su-lang-pills">
+      <button class="su-lang-btn active" id="lang-cs" data-lang="cs">CZ</button>
+      <button class="su-lang-btn"        id="lang-en" data-lang="en">ENG</button>
+    </div>
+  </div>
+
+  <div class="su-row">
+    <a id="launch-sreality-link" href="https://www.sreality.cz/" target="_blank">
+      Sreality.cz <span class="su-ext-arrow">↗</span>
+    </a>
+  </div>
+
+  <button id="launch-btn" class="su-btn">Spustit overlay</button>
+  <button id="debug-btn" class="su-btn">Spustit debugger</button>
+  <button id="about-btn" class="su-btn">O projektu</button>
   <div id="status"></div>
 
   <script src="popup.js" type="module"></script>

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Srealitky Universes — Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Quicksand', system-ui, sans-serif;
+    background: #f8f8f8;
+    color: #222;
+    padding: 40px 20px;
+    line-height: 1.5;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #111;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 48px;
+  }
+
+  /* ── Layout ──────────────────────────── */
+  .diagram {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+  }
+
+  .row {
+    display: flex;
+    gap: 24px;
+    align-items: stretch;
+  }
+  .row.center { justify-content: center; }
+
+  /* ── Cards ───────────────────────────── */
+  .card {
+    background: #fff;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 14px;
+    padding: 22px 24px;
+    flex: 1;
+    min-width: 0;
+    position: relative;
+  }
+  .card.accent  { border-color: #dc2626; }
+  .card.blue    { border-color: #2563eb; }
+  .card.green   { border-color: #16a34a; }
+  .card.purple  { border-color: #7c3aed; }
+  .card.amber   { border-color: #d97706; }
+  .card.slate   { border-color: #64748b; }
+  .card.wide    { flex: 2; }
+  .card.narrow  { flex: 0.8; }
+  .card.fixed   { flex: none; width: 320px; }
+
+  .card-tag {
+    position: absolute;
+    top: -11px;
+    left: 18px;
+    background: #fff;
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #aaa;
+  }
+  .card.accent .card-tag  { color: #dc2626; }
+  .card.blue .card-tag    { color: #2563eb; }
+  .card.green .card-tag   { color: #16a34a; }
+  .card.purple .card-tag  { color: #7c3aed; }
+  .card.amber .card-tag   { color: #d97706; }
+  .card.slate .card-tag   { color: #64748b; }
+
+  .card h2 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 14px 0 6px;
+    color: #555;
+  }
+  .card p, .card li {
+    font-size: 13.5px;
+    color: #444;
+  }
+  .card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .card li {
+    padding: 3px 0;
+    padding-left: 18px;
+    position: relative;
+  }
+  .card li::before {
+    content: '›';
+    position: absolute;
+    left: 4px;
+    color: #bbb;
+    font-weight: 700;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .badge.red    { background: #fef2f2; color: #dc2626; }
+  .badge.blue   { background: #eff6ff; color: #2563eb; }
+  .badge.green  { background: #f0fdf4; color: #16a34a; }
+  .badge.purple { background: #f5f3ff; color: #7c3aed; }
+  .badge.amber  { background: #fffbeb; color: #d97706; }
+  .badge.gray   { background: #f1f5f9; color: #64748b; }
+
+  /* ── Arrows ──────────────────────────── */
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    color: #bbb;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .arrow-row .line {
+    height: 2px;
+    flex: 1;
+    max-width: 80px;
+    background: #ddd;
+  }
+  .arrow-row svg { flex-shrink: 0; }
+
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #bbb;
+  }
+  .flow-arrow .label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #999;
+    margin-bottom: 2px;
+  }
+
+  /* ── Data flow strip ─────────────────── */
+  .flow-strip {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .flow-box {
+    background: #fff;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 12px 18px;
+    text-align: center;
+    min-width: 180px;
+  }
+  .flow-box .num {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    border-radius: 50%;
+    background: #dc2626;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .flow-box .title {
+    font-weight: 700;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  .flow-box .desc {
+    font-size: 12px;
+    color: #777;
+    margin-top: 4px;
+  }
+  .flow-chevron {
+    font-size: 22px;
+    color: #ccc;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── Comm table ──────────────────────── */
+  .comm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .comm-table th {
+    text-align: left;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #999;
+    padding: 6px 10px;
+    border-bottom: 1.5px solid #eee;
+  }
+  .comm-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #f3f3f3;
+    color: #444;
+  }
+  .comm-table tr:last-child td { border-bottom: none; }
+
+  /* ── Concept table ───────────────────── */
+  .concept-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 8px;
+  }
+  .concept {
+    background: #fafafa;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .concept .term {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .concept .def {
+    font-size: 12.5px;
+    color: #555;
+  }
+
+  /* ── Section headers ─────────────────── */
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .section-title .dot.red    { background: #dc2626; }
+  .section-title .dot.blue   { background: #2563eb; }
+  .section-title .dot.green  { background: #16a34a; }
+  .section-title .dot.purple { background: #7c3aed; }
+
+  /* ── Responsive ──────────────────────── */
+  @media (max-width: 860px) {
+    .row { flex-direction: column; }
+    .card.fixed { width: 100%; }
+    .concept-grid { grid-template-columns: 1fr; }
+    .flow-strip { flex-direction: column; }
+    .flow-chevron { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<h1>Srealitky Universes</h1>
+<p class="subtitle">Mid-level architecture &mdash; Chrome Extension for housing affordability context on sreality.cz &mdash; v0.5.11</p>
+
+<div class="diagram">
+
+  <!-- ════════════ SECTION: EXTENSION ENTRY POINTS ════════════ -->
+  <div class="section-title"><span class="dot red"></span> Extension Entry Points</div>
+
+  <div class="row">
+    <!-- Popup -->
+    <div class="card accent narrow">
+      <span class="card-tag">popup.ts + popup.html</span>
+      <h2>Extension Popup</h2>
+      <p>Small panel that opens when the user clicks the extension icon in the toolbar.</p>
+      <ul>
+        <li>Auto-open toggle (on/off)</li>
+        <li>Language switcher (Czech / English)</li>
+        <li>"Launch Overlay" button</li>
+        <li>"Launch Debugger" button</li>
+      </ul>
+      <h3>Owns its own 5-key translations</h3>
+      <p>Cannot share code with content script due to Manifest V3 chunking constraints.</p>
+    </div>
+
+    <!-- Service Worker -->
+    <div class="card slate" style="flex: 0.5;">
+      <span class="card-tag">background.ts</span>
+      <h2>Service Worker</h2>
+      <p>Minimal relay: forwards toolbar button clicks to the active tab's content script.</p>
+      <p style="margin-top:8px;"><span class="badge gray">9 lines of code</span></p>
+    </div>
+
+    <!-- Content Script -->
+    <div class="card accent wide">
+      <span class="card-tag">content.ts &mdash; 1,800 lines</span>
+      <h2>Content Script</h2>
+      <p>The heart of the extension. Injected into every <code>sreality.cz</code> page at <code>document_idle</code>. Orchestrates all scanning, calculation, and UI rendering.</p>
+      <h3>Responsibilities</h3>
+      <ul>
+        <li>Scan DOM for property prices</li>
+        <li>Detect property location (region)</li>
+        <li>Compute affordability comparisons</li>
+        <li>Render all on-page UI (overlays, widgets, popups)</li>
+        <li>Watch for SPA navigation &amp; lazy-loaded content</li>
+        <li>Listen for messages from popup &amp; service worker</li>
+        <li>Remove advertisement cards from listings</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ════════════ SECTION: DATA FLOW ════════════ -->
+  <div class="section-title" style="margin-top: 24px;"><span class="dot blue"></span> Data Pipeline (runs per page / per year change)</div>
+
+  <div class="flow-strip">
+    <div class="flow-step">
+      <div class="flow-box">
+        <span class="num">1</span><span class="title">Detect Prices</span>
+        <div class="desc">TreeWalker scans DOM for "X Kč" patterns.<br>Strips zero-width spaces (anti-scraping).<br>Skips strikethrough &amp; per-m&sup2; prices.</div>
+      </div>
+      <span class="flow-chevron">&#9654;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-box">
+        <span class="num">2</span><span class="title">Detect Location</span>
+        <div class="desc">Breadcrumb DOM &rarr; URL slug &rarr; card text.<br>200+ city/district names &rarr; 14 Czech regions.<br>Falls back to Praha if unknown.</div>
+      </div>
+      <span class="flow-chevron">&#9654;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-box">
+        <span class="num">3</span><span class="title">Compute</span>
+        <div class="desc">For each (price &times; year &times; region):<br>historical price, mortgage payments,<br>burden ratios, stress multiplier,<br>burden-equivalent price.</div>
+      </div>
+      <span class="flow-chevron">&#9654;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-box">
+        <span class="num">4</span><span class="title">Render</span>
+        <div class="desc">Inline widgets on listing cards.<br>Detail comparison in main overlay.<br>Info popup with full math walkthrough.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ SECTION: DOMAIN / CALCULATION LAYER ════════════ -->
+  <div class="section-title" style="margin-top: 24px;"><span class="dot green"></span> Domain &amp; Calculation Layer (pure functions, no DOM)</div>
+
+  <div class="row">
+    <!-- calc.ts -->
+    <div class="card green">
+      <span class="card-tag">universes/calc.ts</span>
+      <h2>Affordability Engine</h2>
+      <p>Pure math &mdash; takes a price, year, and region; returns a full <code>BurdenComparison</code> object.</p>
+      <h3>7-step calculation</h3>
+      <ul>
+        <li><strong>Step 1</strong> &mdash; Estimate historical price via price index ratio</li>
+        <li><strong>Step 2</strong> &mdash; Monthly mortgage payments (current &amp; historical rates)</li>
+        <li><strong>Step 3</strong> &mdash; Household net income (2 earners &times; regional wage &times; 77%)</li>
+        <li><strong>Step 4</strong> &mdash; Burden ratio = payment &divide; income</li>
+        <li><strong>Step 5</strong> &mdash; Stress multiplier = today's burden &divide; historical burden</li>
+        <li><strong>Step 6</strong> &mdash; Burden-equivalent price (what it "should" cost)</li>
+        <li><strong>Step 7</strong> &mdash; Equivalent monthly payment at today's rates</li>
+      </ul>
+      <h3>Also provides</h3>
+      <ul>
+        <li>CZK formatting (Czech locale, space-separated thousands)</li>
+        <li>Price parsing (handles sreality obfuscation)</li>
+        <li>Burden &amp; multiplier formatting</li>
+      </ul>
+    </div>
+
+    <!-- data.ts -->
+    <div class="card green">
+      <span class="card-tag">universes/data.ts</span>
+      <h2>Economic Dataset</h2>
+      <p>All data hardcoded &mdash; <strong>zero external API calls</strong>. Bundled at build time.</p>
+      <h3>27 years of data (2000&ndash;2026)</h3>
+      <ul>
+        <li>Mortgage interest rates (ČNB / Hypoindex)</li>
+        <li>National apartment price index (2015 = 100)</li>
+        <li>National average gross monthly wage (ČSÚ)</li>
+      </ul>
+      <h3>14 Czech regions</h3>
+      <ul>
+        <li>Regional wage anchors (2025 ČSÚ data)</li>
+        <li>Regional price growth multipliers (MVP estimates)</li>
+        <li>Historical regional data derived from 2025 ratios</li>
+      </ul>
+      <h3>Model defaults</h3>
+      <ul>
+        <li>10% down payment, 30-year term</li>
+        <li>2 earners per household, 77% gross-to-net</li>
+      </ul>
+    </div>
+
+    <!-- location.ts -->
+    <div class="card green narrow">
+      <span class="card-tag">universes/location.ts</span>
+      <h2>Location Detector</h2>
+      <p>Maps any Czech locality string to one of 14 regions.</p>
+      <h3>Extraction strategies</h3>
+      <ul>
+        <li><strong>Breadcrumb DOM</strong> &mdash; CSS selectors for nav elements</li>
+        <li><strong>URL slug</strong> &mdash; parses <code>/detail/.../location-slug/</code></li>
+        <li><strong>Card text</strong> &mdash; walks up from price element, scans text nodes</li>
+      </ul>
+      <h3>Lookup table</h3>
+      <ul>
+        <li>200+ entries: cities, districts, okresy</li>
+        <li>ASCII-folded keys (handles diacritics)</li>
+        <li>Longest-key-first matching</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ════════════ SECTION: UI COMPONENTS ════════════ -->
+  <div class="section-title" style="margin-top: 24px;"><span class="dot purple"></span> UI Components (all rendered by content.ts)</div>
+
+  <div class="row">
+    <div class="card purple">
+      <span class="card-tag">Main Overlay</span>
+      <h2>Control Panel</h2>
+      <p>Fixed bottom-left, 360px wide. The user's primary control surface.</p>
+      <ul>
+        <li>Year selector pills (2000 / 2005 / 2010 / 2015 / 2020)</li>
+        <li>Range slider for fine-grained year selection</li>
+        <li>Minimized "mini bar" mode on auto-open</li>
+        <li>Mini bar shows year as clickable red pill</li>
+        <li>Detail comparison panel on property detail pages</li>
+      </ul>
+    </div>
+
+    <div class="card purple">
+      <span class="card-tag">Inline Widgets</span>
+      <h2>Per-Card Comparison</h2>
+      <p>Injected next to each price on listing pages. 3-section stacked layout:</p>
+      <ul>
+        <li><strong>Section 1 (Today)</strong> &mdash; current price + burden% + mortgage</li>
+        <li><strong>Section 2 (Historical)</strong> &mdash; estimated past price + past burden + past mortgage</li>
+        <li><strong>Section 3 (Equivalent)</strong> &mdash; "what it would need to cost today" + equivalent payment</li>
+        <li>Compact variant for map view</li>
+        <li>Each widget has an <strong>&oplus; info button</strong></li>
+      </ul>
+    </div>
+
+    <div class="card purple narrow">
+      <span class="card-tag">Info Popup</span>
+      <h2>Math Walkthrough</h2>
+      <p>Opens on &oplus; click. Draggable, viewport-bounded.</p>
+      <ul>
+        <li>Step-by-step derivation of the widget's numbers</li>
+        <li>Czech or English based on language setting</li>
+        <li>Collapsible data sources table</li>
+        <li>Positions to the right of widget (falls back left)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="border-color: #94a3b8;">
+      <span class="card-tag" style="color: #94a3b8;">Debug Overlay</span>
+      <h2>Price Debugger</h2>
+      <p>Development tool (bottom-right). Shows all raw detected prices with source labels and location data. Useful for verifying the scanner works correctly.</p>
+    </div>
+
+    <div class="card" style="border-color: #94a3b8;">
+      <span class="card-tag" style="color: #94a3b8;">Ad Removal</span>
+      <h2>Ad Card Stripper</h2>
+      <p>Removes "TIP:" and "Reklama" sponsored cards from listing pages so they don't pollute the price scan or clutter the comparison view.</p>
+    </div>
+
+    <div class="card" style="border-color: #94a3b8;">
+      <span class="card-tag" style="color: #94a3b8;">i18n.ts</span>
+      <h2>Translations</h2>
+      <p>~80 translation keys for Czech and English. Static strings + template functions. Language stored in <code>chrome.storage.sync</code>. Change triggers full UI rebuild.</p>
+    </div>
+  </div>
+
+  <!-- ════════════ SECTION: COMMUNICATION ════════════ -->
+  <div class="section-title" style="margin-top: 24px;"><span class="dot red"></span> Communication Paths</div>
+
+  <div class="card" style="max-width: 800px; margin: 0 auto;">
+    <table class="comm-table">
+      <thead>
+        <tr><th>From</th><th>To</th><th>Mechanism</th><th>What it carries</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge red">Popup</span></td>
+          <td><span class="badge red">Content Script</span></td>
+          <td><code>chrome.storage.sync</code></td>
+          <td>Language preference, auto-open setting</td>
+        </tr>
+        <tr>
+          <td><span class="badge red">Popup</span></td>
+          <td><span class="badge red">Content Script</span></td>
+          <td><code>chrome.tabs.sendMessage</code></td>
+          <td>"show-overlay" / "show-debugger"</td>
+        </tr>
+        <tr>
+          <td><span class="badge gray">Service Worker</span></td>
+          <td><span class="badge red">Content Script</span></td>
+          <td><code>chrome.tabs.sendMessage</code></td>
+          <td>"toggle-overlay" (toolbar button click)</td>
+        </tr>
+        <tr>
+          <td><span class="badge purple">Sreality DOM</span></td>
+          <td><span class="badge red">Content Script</span></td>
+          <td><code>MutationObserver</code></td>
+          <td>SPA navigation &amp; lazy-loaded content changes</td>
+        </tr>
+        <tr>
+          <td><span class="badge green">Content Script</span></td>
+          <td><span class="badge green">Content Script</span></td>
+          <td><code>storage.onChanged</code></td>
+          <td>Language change &rarr; <code>rebuildAllUI()</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ════════════ SECTION: KEY CONCEPTS ════════════ -->
+  <div class="section-title" style="margin-top: 24px;"><span class="dot blue"></span> Key Business Concepts</div>
+
+  <div class="concept-grid">
+    <div class="concept">
+      <div class="term">Burden Ratio</div>
+      <div class="def">Monthly mortgage payment &divide; household net income. The core metric. E.g., <strong>0.55 = "55% of take-home pay goes to mortgage."</strong></div>
+    </div>
+    <div class="concept">
+      <div class="term">Stress Multiplier</div>
+      <div class="def">Today's burden &divide; historical burden. E.g., <strong>1.68&times;</strong> means "housing eats 68% more of your income today than it did in year&nbsp;X."</div>
+    </div>
+    <div class="concept">
+      <div class="term">Burden-Equivalent Price</div>
+      <div class="def">"What would this flat need to cost <em>today</em> for the mortgage burden to feel like year X?" &mdash; the headline user-facing insight.</div>
+    </div>
+    <div class="concept">
+      <div class="term">Regional Data</div>
+      <div class="def">Wages and price growth differ by region. Praha prices grew ~15% faster than national; &Uacute;steck&yacute; kraj ~25% slower. 14 regions tracked.</div>
+    </div>
+    <div class="concept">
+      <div class="term">Year Selector</div>
+      <div class="def">User picks a comparison year (2000&ndash;2025) via quick-pick pills or a range slider. Default: 2015. Changing the year re-computes all widgets live.</div>
+    </div>
+    <div class="concept">
+      <div class="term">Anti-Scraping Handling</div>
+      <div class="def">Sreality injects zero-width spaces (U+200B) and per-character &lt;span&gt; obfuscation into prices. The scanner normalizes these before parsing.</div>
+    </div>
+  </div>
+
+  <!-- ════════════ SECTION: BUILD ════════════ -->
+  <div class="section-title" style="margin-top: 24px;"><span class="dot green"></span> Build &amp; Deployment</div>
+
+  <div class="row center">
+    <div class="card green fixed">
+      <span class="card-tag">vite.config.ts</span>
+      <h2>Build Pipeline</h2>
+      <ul>
+        <li>Vite + TypeScript, multi-entry build</li>
+        <li>4 entry points: content, background, sidebar, popup</li>
+        <li>ES module format, all deps bundled inline</li>
+        <li>No dynamic imports (Chrome content script constraint)</li>
+        <li>Outputs: <code>dist/content.js</code>, <code>dist/background.js</code>, <code>dist/popup.js</code>, <code>dist/sidebar.js</code></li>
+        <li>Copies manifest.json, popup.html, icons/, data/ into dist/</li>
+      </ul>
+      <h3>Dev workflow</h3>
+      <p><code>vite build --watch</code> + manual Chrome reload from <code>dist/</code></p>
+    </div>
+    <div class="card fixed" style="border-color: #94a3b8;">
+      <span class="card-tag" style="color: #94a3b8;">Manifest V3</span>
+      <h2>Chrome Extension Config</h2>
+      <ul>
+        <li>Permissions: <code>activeTab</code>, <code>storage</code></li>
+        <li>Content script on <code>https://www.sreality.cz/*</code></li>
+        <li>No eval, no remote code</li>
+        <li>Service worker (not persistent background page)</li>
+        <li>Web-accessible: sidebar.js, data/*.json</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="text-align:center; color:#bbb; font-size:12px; margin-top:40px;">
+    Generated from codebase analysis &mdash; v0.5.11 &mdash; April 2026
+  </p>
+
+</div>
+</body>
+</html>
