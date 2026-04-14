@@ -1049,6 +1049,7 @@ function showMainOverlay() {
   }
   mainOverlayEl.classList.remove("su-mo-hidden");
   mainVisible = true;
+  chrome.storage.local.set({ overlayOpen: true });
   applyHighlights();  // includes renderListingComparisons
   updateDetailComparison();
 }
@@ -1056,6 +1057,7 @@ function showMainOverlay() {
 function hideMainOverlay() {
   mainOverlayEl?.classList.add("su-mo-hidden");
   mainVisible = false;
+  chrome.storage.local.set({ overlayOpen: false });
   if (!debugVisible) removeHighlights();
 }
 
@@ -2092,8 +2094,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ─── Message listener ─────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "toggle-overlay")                       toggleDebugOverlay();
-  if (msg.type === "show-overlay")                         showMainOverlay();
+  if (msg.type === "toggle-overlay")                            toggleDebugOverlay();
+  if (msg.type === "show-overlay")                              showMainOverlay();
+  if (msg.type === "hide-overlay")                              hideMainOverlay();
   if (msg.type === "show-debugger" && DEBUGGER_FEATURE_ENABLED) showDebugOverlay();
-  if (msg.type === "show-about")                           showAboutOverlay();
+  if (msg.type === "show-about")                                showAboutOverlay();
 });

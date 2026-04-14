@@ -105,11 +105,31 @@
     }
     #launch-btn {
       margin-top: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0,0,0,0.04);
+      color: #999999;
+      border: 1px solid rgba(0,0,0,0.10);
+    }
+    #launch-btn:hover { background: rgba(0,0,0,0.08); }
+    #launch-btn.overlay-on {
       background: #dc2626;
       color: #ffffff;
+      border-color: transparent;
     }
-    #launch-btn:hover { background: #b91c1c; }
-    #launch-btn:active { background: #991b1b; }
+    #launch-btn.overlay-on:hover { background: #b91c1c; }
+    #launch-btn.overlay-on:active { background: #991b1b; }
+    .su-overlay-label { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+    .su-overlay-pill {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      padding: 3px 8px; border-radius: 20px;
+      background: rgba(0,0,0,0.08); color: #aaaaaa;
+      transition: background 0.15s, color 0.15s;
+    }
+    #launch-btn.overlay-on .su-overlay-pill {
+      background: rgba(255,255,255,0.25); color: #ffffff;
+    }
     #debug-btn {
       margin-top: 6px;
       background: rgba(220,38,38,0.05);
@@ -210,7 +230,10 @@
     </a>
   </div>
 
-  <button id="launch-btn" class="su-btn">Spustit overlay</button>
+  <button id="launch-btn" class="su-btn">
+    <span class="su-overlay-label">Overlay</span>
+    <span class="su-overlay-pill" id="overlay-status">OFF</span>
+  </button>
   <button id="debug-btn" class="su-btn">Spustit debugger</button>
   <button id="about-btn" class="su-btn">O projektu</button>
   <div id="status"></div>
