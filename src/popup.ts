@@ -32,7 +32,7 @@ const POPUP_STRINGS: Record<Lang, {
   notOnSreality:  string;
 }> = {
   cs: {
-    title:          'Historický srovnávač bydlení',
+    title:          'Unreal Estate',
     autoTurnOn:     'Automaticky zapnout',
     langLabel:      'Jazyk',
     launchOverlay:  'Spustit overlay',
@@ -41,7 +41,7 @@ const POPUP_STRINGS: Record<Lang, {
     notOnSreality:  'Nejste na stránce sreality.cz.',
   },
   en: {
-    title:          'Historical Housing Comparator',
+    title:          'Unreal Estate',
     autoTurnOn:     'Auto turn on',
     langLabel:      'Language',
     launchOverlay:  'Launch overlay',

@@ -79,7 +79,7 @@ const T = {
     popupLangLabel:      'Jazyk',
 
     // ── Extension name ────────────────────────────────────────────────────────
-    extensionName:       'Historický srovnávač bydlení',
+    extensionName:       'Unreal Estate',
   },
 
   en: {
@@ -147,7 +147,7 @@ const T = {
     popupLangLabel:      'Language',
 
     // ── Extension name ────────────────────────────────────────────────────────
-    extensionName:       'Historical Housing Comparator',
+    extensionName:       'Unreal Estate',
   },
 } as const;
 

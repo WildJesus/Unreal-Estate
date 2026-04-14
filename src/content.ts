@@ -16,7 +16,7 @@ import { t, setLang, getLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 
 // Feature flag: city comparison is not yet fully implemented — hidden until ready.
 const CITY_FEATURE_ENABLED = false;
