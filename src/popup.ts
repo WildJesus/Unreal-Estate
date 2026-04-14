@@ -130,7 +130,6 @@ overlayOnBtn.addEventListener('click', () => {
     chrome.tabs.sendMessage(tab.id, { type: 'show-overlay' });
     setOverlayToggle(true);
     chrome.storage.local.set({ overlayOpen: true });
-    window.close();
   });
 });
 
@@ -144,7 +143,6 @@ overlayOffBtn.addEventListener('click', () => {
     chrome.tabs.sendMessage(tab.id, { type: 'hide-overlay' });
     setOverlayToggle(false);
     chrome.storage.local.set({ overlayOpen: false });
-    window.close();
   });
 });
 
