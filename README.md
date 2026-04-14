@@ -8,6 +8,8 @@ A Chrome extension that adds affordability context to every property listing on 
 
 You're looking at a flat in Prague for **8 500 000 Kč**. The extension adds this widget next to the price:
 
+![Widget screenshot](docs/widget.jpg)
+
 ```
 <img width="416" height="309" alt="image" src="https://github.com/user-attachments/assets/f00061f4-d50f-4bfe-8fe8-37628937a48b" />
 

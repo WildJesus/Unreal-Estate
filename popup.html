@@ -103,13 +103,57 @@
       cursor: pointer;
       transition: background 0.15s;
     }
-    #launch-btn {
+    /* Overlay segmented control */
+    .su-seg-control {
       margin-top: 13px;
+      border: 1px solid rgba(0,0,0,0.10);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .su-seg-header {
+      padding: 6px 12px;
+      background: rgba(0,0,0,0.02);
+      border-bottom: 1px solid rgba(0,0,0,0.07);
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #aaaaaa;
+    }
+    .su-seg-buttons {
+      display: flex;
+      padding: 7px;
+      gap: 5px;
+    }
+    .su-seg-btn {
+      flex: 1;
+      padding: 9px 0;
+      border: none;
+      border-radius: 7px;
+      font-family: 'Quicksand', system-ui, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      background: transparent;
+      color: #cccccc;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+    .su-seg-btn:hover { background: rgba(0,0,0,0.05); color: #888888; }
+    .su-seg-btn:active { transform: scale(0.97); }
+    .su-seg-btn.su-seg-active-on {
       background: #dc2626;
       color: #ffffff;
+      box-shadow: 0 2px 8px rgba(220,38,38,0.28);
     }
-    #launch-btn:hover { background: #b91c1c; }
-    #launch-btn:active { background: #991b1b; }
+    .su-seg-btn.su-seg-active-on:hover { background: #b91c1c; }
+    .su-seg-btn.su-seg-active-off {
+      background: #1a1a1a;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .su-seg-btn.su-seg-active-off:hover { background: #333333; }
     #debug-btn {
       margin-top: 6px;
       background: rgba(220,38,38,0.05);
@@ -183,7 +227,7 @@
 </head>
 <body>
   <div id="su-popup-header">
-    <span id="su-popup-title">Srealitky Universes</span>
+    <span id="su-popup-title">Unreal Estate</span>
   </div>
 
   <hr class="su-divider" />
@@ -210,7 +254,13 @@
     </a>
   </div>
 
-  <button id="launch-btn" class="su-btn">Spustit overlay</button>
+  <div class="su-seg-control">
+    <div class="su-seg-header" id="label-overlay">Overlay</div>
+    <div class="su-seg-buttons">
+      <button id="overlay-on-btn"  class="su-seg-btn">ZAP</button>
+      <button id="overlay-off-btn" class="su-seg-btn su-seg-active-off">VYP</button>
+    </div>
+  </div>
   <button id="debug-btn" class="su-btn">Spustit debugger</button>
   <button id="about-btn" class="su-btn">O projektu</button>
   <div id="status"></div>

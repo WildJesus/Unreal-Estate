@@ -77,6 +77,9 @@ const T = {
     popupLaunchDebugger: 'Spustit debugger',
     popupNotOnSreality:  'Nejste na stránce sreality.cz.',
     popupLangLabel:      'Jazyk',
+
+    // ── Extension name ────────────────────────────────────────────────────────
+    extensionName:       'Unreal Estate',
   },
 
   en: {
@@ -142,6 +145,9 @@ const T = {
     popupLaunchDebugger: 'Launch debugger',
     popupNotOnSreality:  'Not on a sreality.cz page.',
     popupLangLabel:      'Language',
+
+    // ── Extension name ────────────────────────────────────────────────────────
+    extensionName:       'Unreal Estate',
   },
 } as const;
 

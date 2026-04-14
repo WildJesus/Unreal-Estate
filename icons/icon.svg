@@ -1,11 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <rect width="128" height="128" rx="22" fill="#ffffff"/>
-  <text x="30" y="95"
+  <!-- red S -->
+  <text x="6" y="82"
         font-family="Arial, Helvetica, sans-serif"
-        font-size="88" font-weight="700"
+        font-size="74" font-weight="700"
         fill="#dc2626">S</text>
-  <text x="68" y="95"
+  <!-- green delta badge (matches widget .su-cw-dn style) -->
+  <rect x="56" y="26" width="66" height="76" rx="10" fill="#dcfce7"/>
+  <text x="89" y="67"
         font-family="Arial, Helvetica, sans-serif"
-        font-size="88" font-weight="700"
-        fill="#111111">U</text>
+        font-size="30" font-weight="700"
+        fill="#16a34a" text-anchor="middle">&#x2193;</text>
+  <text x="89" y="91"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="22" font-weight="700"
+        fill="#16a34a" text-anchor="middle">60%</text>
 </svg>

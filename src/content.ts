@@ -16,7 +16,7 @@ import { t, setLang, getLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.2";
 
 // Feature flag: city comparison is not yet fully implemented — hidden until ready.
 const CITY_FEATURE_ENABLED = false;
@@ -834,7 +834,7 @@ function buildMainOverlay(): HTMLElement {
   el.innerHTML = `
     <div id="su-mo-header">
       <div id="su-mo-title-wrap">
-        <span id="su-mo-name">Srealitky Universes</span>
+        <span id="su-mo-name">${t('extensionName')}</span>
         <span id="su-mo-version">v${VERSION}</span>
         <button class="su-mo-info-btn" id="su-mo-header-info" title="${t('widgetInfoTooltip')}">
           <svg width="18" height="18" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -849,7 +849,7 @@ function buildMainOverlay(): HTMLElement {
     </div>
 
     <div id="su-mo-mini">
-      <span id="su-mo-mini-label">Srealitky Universes</span>
+      <span id="su-mo-mini-label">${t('extensionName')}</span>
       <span id="su-mo-mini-filters"></span>
       <button class="su-mo-info-btn" id="su-mo-mini-info" title="${t('widgetInfoTooltip')}">
         <svg width="18" height="18" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -1049,6 +1049,7 @@ function showMainOverlay() {
   }
   mainOverlayEl.classList.remove("su-mo-hidden");
   mainVisible = true;
+  chrome.storage.local.set({ overlayOpen: true });
   applyHighlights();  // includes renderListingComparisons
   updateDetailComparison();
 }
@@ -1056,6 +1057,7 @@ function showMainOverlay() {
 function hideMainOverlay() {
   mainOverlayEl?.classList.add("su-mo-hidden");
   mainVisible = false;
+  chrome.storage.local.set({ overlayOpen: false });
   if (!debugVisible) removeHighlights();
 }
 
@@ -2092,8 +2094,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ─── Message listener ─────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "toggle-overlay")                       toggleDebugOverlay();
-  if (msg.type === "show-overlay")                         showMainOverlay();
+  if (msg.type === "toggle-overlay")                            toggleDebugOverlay();
+  if (msg.type === "show-overlay")                              showMainOverlay();
+  if (msg.type === "hide-overlay")                              hideMainOverlay();
   if (msg.type === "show-debugger" && DEBUGGER_FEATURE_ENABLED) showDebugOverlay();
-  if (msg.type === "show-about")                           showAboutOverlay();
+  if (msg.type === "show-about")                                showAboutOverlay();
 });
