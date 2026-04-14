@@ -32,6 +32,7 @@ const T = {
     dbgLocationUnknown: 'lokace neznámá',
 
     // ── Main overlay ───────────────────────────────────────────────────────────
+    moDisclaimer:       'Zátěž počítána pro pár, kde oba vydělávají mediánovou mzdu v daném kraji.',
     moMinimize:         'Minimalizovat',
     moClose:            'Zavřít',
     moExpand:           'Rozbalit',
@@ -41,6 +42,8 @@ const T = {
     moConfirmYear:      'Potvrdit rok (Enter)',
     moCitySection:      'Porovnat s jiným městem',
     moCitySelected:     'vybráno',
+    moBurdenChart:      'Zátěž hypotéky (Medián bytu)',
+    bcLegend:           (mult: string, year: number) => `Bydlení je dnes ${mult}× náročnější než v&nbsp;${year}`,
     moComparison:       'Porovnání',
     moSelectedYear:     'Vybraný rok',
 
@@ -100,6 +103,7 @@ const T = {
     dbgLocationUnknown: 'location unknown',
 
     // ── Main overlay ───────────────────────────────────────────────────────────
+    moDisclaimer:       'Burden calculated for a couple where both partners earn the regional median wage.',
     moMinimize:         'Minimize',
     moClose:            'Close',
     moExpand:           'Expand',
@@ -109,6 +113,8 @@ const T = {
     moConfirmYear:      'Confirm year (Enter)',
     moCitySection:      'Compare to a different city',
     moCitySelected:     'selected',
+    moBurdenChart:      'Mortgage burden (Median Flat)',
+    bcLegend:           (mult: string, year: number) => `Housing today is ${mult}× more burdensome than in&nbsp;${year}`,
     moComparison:       'Comparison',
     moSelectedYear:     'Selected year',
 

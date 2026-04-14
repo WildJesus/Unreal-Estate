@@ -10,7 +10,7 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-13): v1.0.0
+## Current Status (2026-04-14): v1.0.3
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
@@ -18,16 +18,30 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
 - Price detection: TreeWalker scan, handles sreality anti-scraping (U+200B, per-char obfuscated spans)
 - No price highlights (`su-hl` class kept for tracking, visually invisible since v0.5.0)
 - Main overlay (bottom-left, 360px wide):
+  - Disclaimer at top: "Burden calculated for a couple where both partners earn the regional median wage."
   - Year selector pills (2000/2005/2010/2015/2020) + range slider; default year 2015 on auto-open
-  - Auto-opens **minimized** on page load; mini bar shows year as red clickable pill → click expands
-  - Mini bar: "SREALITKY UNIVERSES · [2015] · ▭ · ✕" — year pill or ▭ button expands
+    - No checkbox — year section is always enabled
+  - Auto-opens **minimized** on page load; mini bar shows year as red clickable pill
+  - Mini bar: clicking anywhere expands; ✕ is the only way to fully close
+  - Header X button minimizes (does NOT close); ─ also minimizes
+  - Mini bar cursor: `pointer` when minimized
+  - Burden chart section (between year selector and comparison):
+    - SVG inline chart, X=2000–2026, Y=0–100% burden
+    - Reference: `CHART_REF_PRICE = 13_000_000` CZK + `CHART_REF_REGION = 'praha'` (Praha 2+kk median)
+    - Left of selected year: solid red line + red fill; right: dashed + lower opacity
+    - Vertical divider at selected year; horizontal dashed reference line at 2026 burden level
+    - Section title: "Zátěž hypotéky (Medián bytu)" / "Mortgage burden (Median Flat)"
+    - Head badge below title: "YEAR: X% · 2026: Y%" — updates on every slider move
+    - Legend below chart: "Bydlení je dnes 1.68× náročnější než v 2015" (red bold multiplier), i18n'd
+  - Comparison section (detail page only): shows burden-equivalent price and payments
 - Debug overlay (bottom-right): raw detected prices with source labels. **Hidden behind `DEBUGGER_FEATURE_ENABLED = false`.**
 - About overlay: project info, math explanation, data sources, **disclaimer** (not affiliated with Sreality/Seznam), accessible via "O projektu" button in popup
-- Inline comparison widgets: 3-section stacked widget per price — today / historical / burden-equivalent
-  - Section 1: today's price + burden% + mortgage payment
-  - Section 2: historical price (↓X%) + burden% + historical mortgage (↓X%)
-  - Section 3 (equiv): CSS grid layout — label/mortgage in col 1, single shared ↓X% badge spanning
-    both rows in col 2, price/payment in col 3. No extra height.
+- Inline comparison widgets: 4-line stacked widget per price
+  - Line 1: year + price + (Burden X%) + ⓘ
+  - Line 2: Mortgage: payment/měs
+  - Divider
+  - Line 3: histYear + ↓X% + equiv-price + (Burden Y%)
+  - Line 4: Mortgage: ↓X% + hist-payment/měs
   - Map view: compact equiv-only variant stacked below price label
 - Info popup (ⓘ icon):
   - Story-based "Jak se to počítá?" narrative — smart friend explaining the math, not a textbook
@@ -40,7 +54,7 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
   - Positions using real offsetHeight (shown at opacity:0 first); always fits in viewport
   - Drag bounded to viewport — can't be pulled off screen
   - SVG stroke/fill hardcoded (#bbbbbb), no currentColor; transition removed — breaks sreality hover inheritance loop that caused flicker
-- Detail comparison panel: matches inline widget 3-section layout exactly
+- Detail comparison panel: matches inline widget layout exactly
 - ⓘ pulse animation (detail page only, first main price only):
   - 5s initial delay after widget render, then red glow pulse (3s animation)
   - Runs 3 times on 10s cooldown, then switches to 20s interval forever
@@ -52,7 +66,18 @@ Goal: viscerally communicate how bad Prague (and Czech) housing affordability ha
 - i18n: Czech/English switcher in popup via `chrome.storage.sync`; live re-render via `storage.onChanged`
 - Module-level state: `highlightedEls`, `comparisonEls`, `mainOverlayEl`, `debugOverlayEl`, `activeYear`, `infoPopupEl`
 - Widget immune to parent card :hover via `!important` on all color/text/pointer-events properties
-- Extension icon: red **S** black **U** on white background (128×128 SVG → rasterized by `icons/generate-icons.mjs`)
+- Extension icon: geometric house SVG — dark `#1c1208` bg, red `#dc2626` roof + chimney, cream `#fef3c7` body. Rasterized by `icons/generate-icons.mjs`
+- Popup: segmented ON/OFF overlay control; language switcher (CS/EN); auto-open toggle; Sreality.cz launch link
+
+### Burden chart constants
+```typescript
+const CHART_REF_PRICE  = 13_000_000;   // Praha 2+kk median — produces ~60% burden in 2026
+const CHART_REF_REGION: CzechRegion = 'praha';  // NOTE: lowercase! 'Praha' silently returns NaN
+const CHART_ALL_COMPARISONS = computeAllComparisons(CHART_REF_PRICE, CHART_REF_REGION);
+```
+Pre-computed at module load — static data, no runtime cost. `CzechRegion` keys are ALL lowercase
+(`'praha'`, `'jihomoravsky'`, etc.) — passing a capitalized string silently produces `NaN` burden
+because the wage lookup returns `undefined`.
 
 ### Regional price data (v2026-04-regional-v2)
 - `REGIONAL_PRICE_INDICES` in `data.ts`: 27 years (2000–2026), 14 Czech kraje, base 2015=100
@@ -101,6 +126,11 @@ overrides animation fill keyframes. Fix: use `.su-cw-info:not(.su-info-pulse) sv
 to exclude the pulsing button. `!important` in a selector with lower specificity still wins at runtime.
 The `:not()` exclusion is the clean escape hatch. Burned in v0.5.14.
 
+**CzechRegion keys are lowercase** — `CzechRegion` type values are `'praha'`, `'jihomoravsky'`, etc.
+Passing `'Praha'` (capital P) compiles fine (TypeScript type erasure via esbuild) but silently returns
+`undefined` from wage lookups, cascading to `NaN` in all burden calculations. Always verify against the
+type definition in `location.ts`. Burned in v1.0.3 burden chart.
+
 ## Math Model (v0.3.0 — burden ratio)
 ```
 P_t = P_now × (priceIndex_t / priceIndex_now)          // historical price estimate
@@ -125,7 +155,7 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
 - Content script injects styles into `document.head`; no shadow DOM
 - `normalizePrice()` strips U+200B and NBSP before any price parsing
 - **i18n**: `src/i18n.ts` exports `t(key, ...args)` + `setLang(lang)`. Only imported by `content.ts`.
-  `popup.ts` has its own 5-key inline POPUP_STRINGS to avoid a shared Rollup chunk (content scripts
+  `popup.ts` has its own inline POPUP_STRINGS to avoid a shared Rollup chunk (content scripts
   are classic scripts and cannot import from external chunk files).
 - Language stored as `lang: 'cs' | 'en'` in `chrome.storage.sync` (default `'cs'`).
   `chrome.storage.onChanged` in content.ts drives live re-render via `rebuildAllUI()`.
@@ -136,6 +166,8 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
   `chrome.storage.sync` is for user preferences (lang, autoOpen).
 - **`infoPopupEl`**: must be tracked as a module-level variable and added to `overlayExclusions` in both
   `applyHighlights()` and `renderListingComparisons()`, just like `mainOverlayEl` and `debugOverlayEl`.
+- **Burden chart**: `buildBurdenChartSVG(selectedYear)` is a pure function (no DOM); `updateBurdenChart(year)`
+  is a closure inside `buildMainOverlay()`. Chart data pre-computed once at module load.
 
 ## Design System
 - Font: Quicksand 400/600/700 via Google Fonts @import in injected style blocks
@@ -143,7 +175,7 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
   cream text `#fef3c7`, muted `#c4a882`/`#a38d72`, very muted `#826650`
 - **Info popup dark palette**: bg `#1c1208` (0.98), border `#3d2e1a`, title cream, body cream `#fef3c7`
   Hero numbers: orange `#f97316`, supporting numbers: white `#ffffff`, source line: `#a89070`
-- **Content script list page palette**: white bg `#ffffff`, primary text `#111111`, red accent `#dc2626`
+- **Main overlay palette**: white bg `#ffffff`, primary text `#111111`, red accent `#dc2626`, muted `#888888`/`#aaaaaa`
 - **Popup palette**: white bg `#ffffff`, red accent `#dc2626`, muted grey `#888888` title
 - Vibe: artisanal minimalism — boutique café menu meets mortgage calculator
 - No entrance animations on widgets; subtle hover transitions only; `tabular-nums` for all prices
