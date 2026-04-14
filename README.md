@@ -1,4 +1,4 @@
-# Srealitky Universes
+# Srealitky Universes -> Unreal Estate 
 
 A Chrome extension that adds affordability context to every property listing on [sreality.cz](https://www.sreality.cz/).
 
