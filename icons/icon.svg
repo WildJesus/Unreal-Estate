@@ -3,10 +3,10 @@
   <rect width="128" height="128" rx="24" fill="#1c1208"/>
 
   <!-- Chimney (drawn first, sits behind roof) -->
-  <rect x="80" y="24" width="11" height="26" rx="2" fill="#f97316"/>
+  <rect x="80" y="24" width="11" height="26" rx="2" fill="#dc2626"/>
 
   <!-- Roof — orange, sharp geometric triangle -->
-  <polygon points="14,70 64,14 114,70" fill="#f97316"/>
+  <polygon points="14,70 64,14 114,70" fill="#dc2626"/>
 
   <!-- House body — cream -->
   <rect x="28" y="66" width="72" height="50" rx="3" fill="#fef3c7"/>
