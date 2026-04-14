@@ -1,4 +1,4 @@
-// Extension popup — auto-open toggle, language switcher, manual launch button.
+// Extension popup — auto-open toggle, language switcher, overlay segmented control.
 // NOTE: popup.ts intentionally does NOT import from i18n.ts to keep the popup
 // bundle self-contained (no shared Rollup chunk that would break content scripts).
 
@@ -10,8 +10,8 @@ const DEBUGGER_FEATURE_ENABLED = false;
 // ─── Element refs ─────────────────────────────────────────────────────────────
 
 const toggle        = document.getElementById('auto-open')        as HTMLInputElement;
-const launchBtn     = document.getElementById('launch-btn')       as HTMLButtonElement;
-const overlayStatus = document.getElementById('overlay-status')   as HTMLSpanElement;
+const overlayOnBtn  = document.getElementById('overlay-on-btn')   as HTMLButtonElement;
+const overlayOffBtn = document.getElementById('overlay-off-btn')  as HTMLButtonElement;
 const debugBtn      = document.getElementById('debug-btn')        as HTMLButtonElement;
 const aboutBtn      = document.getElementById('about-btn')        as HTMLButtonElement;
 const status        = document.getElementById('status')           as HTMLDivElement;
@@ -23,7 +23,7 @@ const langEn        = document.getElementById('lang-en')          as HTMLButtonE
 
 let overlayOn = false;
 
-// ─── Popup-local translations (5 keys — keeps popup bundle self-contained) ───
+// ─── Popup-local translations ─────────────────────────────────────────────────
 
 const POPUP_STRINGS: Record<Lang, {
   title:          string;
@@ -64,24 +64,19 @@ function applyPopupLang(lang: Lang) {
   popupTitle.textContent    = s.title;
   labelAutoOpen.textContent = s.autoTurnOn;
   labelLang.textContent     = s.langLabel;
+  overlayOnBtn.textContent  = s.overlayOn;
+  overlayOffBtn.textContent = s.overlayOff;
   debugBtn.textContent      = s.launchDebugger;
   aboutBtn.textContent      = s.about;
   langCs.classList.toggle('active', lang === 'cs');
   langEn.classList.toggle('active', lang === 'en');
-  // Store ON/OFF labels for the toggle button.
-  (launchBtn as any)._labelOn  = s.overlayOn;
-  (launchBtn as any)._labelOff = s.overlayOff;
-  overlayStatus.textContent = overlayOn ? s.overlayOn : s.overlayOff;
-  // Store for use in sendToActiveTab error message.
   (status as any)._notOnSreality = s.notOnSreality;
 }
 
 function setOverlayToggle(on: boolean) {
   overlayOn = on;
-  launchBtn.classList.toggle('overlay-on', on);
-  overlayStatus.textContent = on
-    ? ((launchBtn as any)._labelOn  ?? 'ON')
-    : ((launchBtn as any)._labelOff ?? 'OFF');
+  overlayOnBtn.classList.toggle('su-seg-active-on',   on);
+  overlayOffBtn.classList.toggle('su-seg-active-off', !on);
 }
 
 // ─── Load saved settings ──────────────────────────────────────────────────────
@@ -107,13 +102,11 @@ toggle.addEventListener('change', () => {
   btn.addEventListener('click', () => {
     const lang = btn.dataset.lang as Lang;
     applyPopupLang(lang);
-    // Writing to storage.sync triggers chrome.storage.onChanged in the content
-    // script, which calls setLang() + rebuildAllUI() there automatically.
     chrome.storage.sync.set({ lang });
   });
 });
 
-// ─── Launch buttons ───────────────────────────────────────────────────────────
+// ─── Overlay segmented control ────────────────────────────────────────────────
 
 function sendToActiveTab(type: string) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -127,21 +120,36 @@ function sendToActiveTab(type: string) {
   });
 }
 
-// Hide debug button in production builds.
-if (!DEBUGGER_FEATURE_ENABLED) debugBtn.style.display = 'none';
-
-launchBtn.addEventListener('click', () => {
+overlayOnBtn.addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
     if (!tab?.id || !tab.url?.includes('sreality.cz')) {
       status.textContent = (status as any)._notOnSreality ?? 'Not on a sreality.cz page.';
       return;
     }
-    const newState = !overlayOn;
-    chrome.tabs.sendMessage(tab.id, { type: newState ? 'show-overlay' : 'hide-overlay' });
-    setOverlayToggle(newState);
-    chrome.storage.local.set({ overlayOpen: newState });
+    chrome.tabs.sendMessage(tab.id, { type: 'show-overlay' });
+    setOverlayToggle(true);
+    chrome.storage.local.set({ overlayOpen: true });
+    window.close();
   });
 });
+
+overlayOffBtn.addEventListener('click', () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs[0];
+    if (!tab?.id || !tab.url?.includes('sreality.cz')) {
+      status.textContent = (status as any)._notOnSreality ?? 'Not on a sreality.cz page.';
+      return;
+    }
+    chrome.tabs.sendMessage(tab.id, { type: 'hide-overlay' });
+    setOverlayToggle(false);
+    chrome.storage.local.set({ overlayOpen: false });
+    window.close();
+  });
+});
+
+// Hide debug button in production builds.
+if (!DEBUGGER_FEATURE_ENABLED) debugBtn.style.display = 'none';
+
 if (DEBUGGER_FEATURE_ENABLED) debugBtn.addEventListener('click', () => sendToActiveTab('show-debugger'));
 aboutBtn.addEventListener('click',  () => sendToActiveTab('show-about'));
