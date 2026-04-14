@@ -1,6 +1,16 @@
 # Srealitky Universes -> Unreal Estate 
 
 A Chrome extension that adds affordability context to every property listing on [sreality.cz](https://www.sreality.cz/).
+---
+
+## How to install
+
+1. **Download** the latest `.zip` from [Releases](https://github.com/Omni-Wild/Unreal-Estate/releases/latest)
+2. **Unzip** the file into a folder on your computer
+3. Open Chrome and go to `chrome://extensions`
+4. Turn on **Developer mode** (toggle in the top-right corner)
+5. Click **Load unpacked** and select the unzipped folder
+6. Visit [sreality.cz](https://www.sreality.cz/) — the extension activates automatically
 
 ---
 
@@ -26,17 +36,6 @@ The comparison year is adjustable (2000–2025). Default is 2015.
 The extension compares mortgage burden — the share of household income eaten by a monthly mortgage payment — across time. It accounts for today's higher wages, today's interest rates, and regional price growth. The result is a single honest number: *what should this actually cost?*
 
 Click the **ⓘ** icon on any widget for a full plain-language explanation of the math for that specific listing.
-
----
-
-## How to install
-
-1. **Download** the latest `.zip` from [Releases](https://github.com/Omni-Wild/Unreal-Estate/releases/latest)
-2. **Unzip** the file into a folder on your computer
-3. Open Chrome and go to `chrome://extensions`
-4. Turn on **Developer mode** (toggle in the top-right corner)
-5. Click **Load unpacked** and select the unzipped folder
-6. Visit [sreality.cz](https://www.sreality.cz/) — the extension activates automatically
 
 ---
 
