@@ -1,18 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="22" fill="#ffffff"/>
-  <!-- red S -->
-  <text x="6" y="82"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="74" font-weight="700"
-        fill="#dc2626">S</text>
-  <!-- green delta badge (matches widget .su-cw-dn style) -->
-  <rect x="56" y="26" width="66" height="76" rx="10" fill="#dcfce7"/>
-  <text x="89" y="67"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="30" font-weight="700"
-        fill="#16a34a" text-anchor="middle">&#x2193;</text>
-  <text x="89" y="91"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="22" font-weight="700"
-        fill="#16a34a" text-anchor="middle">60%</text>
+  <!-- Dark warm background — matches the widget/overlay palette exactly -->
+  <rect width="128" height="128" rx="24" fill="#1c1208"/>
+
+  <!-- Chimney (drawn first, sits behind roof) -->
+  <rect x="80" y="24" width="11" height="26" rx="2" fill="#f97316"/>
+
+  <!-- Roof — orange, sharp geometric triangle -->
+  <polygon points="14,70 64,14 114,70" fill="#f97316"/>
+
+  <!-- House body — cream -->
+  <rect x="28" y="66" width="72" height="50" rx="3" fill="#fef3c7"/>
+
+  <!-- Door — dark cutout, arch top -->
+  <rect x="48" y="82" width="32" height="34" rx="4" fill="#1c1208"/>
 </svg>
