@@ -31,12 +31,12 @@ Click the **ⓘ** icon on any widget for a full plain-language explanation of th
 
 ## How to install
 
-The extension is not yet on the Chrome Web Store. To use it:
-
-1. Download or clone this repo
-2. Run `npm install && npx vite build`
-3. Open Chrome → `chrome://extensions` → enable **Developer mode**
-4. Click **Load unpacked** → select the `dist/` folder
+1. **Download** the latest `.zip` from [Releases](https://github.com/Omni-Wild/Unreal-Estate/releases/latest)
+2. **Unzip** the file into a folder on your computer
+3. Open Chrome and go to `chrome://extensions`
+4. Turn on **Developer mode** (toggle in the top-right corner)
+5. Click **Load unpacked** and select the unzipped folder
+6. Visit [sreality.cz](https://www.sreality.cz/) — the extension activates automatically
 
 ---
 
