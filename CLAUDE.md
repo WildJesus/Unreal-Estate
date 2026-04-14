@@ -10,7 +10,7 @@ Chrome extension for sreality.cz that injects affordability context onto propert
 Shows what a property would need to cost today for the mortgage burden to match a selected historical year.
 Goal: viscerally communicate how bad Prague (and Czech) housing affordability has become.
 
-## Current Status (2026-04-14): v1.0.3
+## Current Status (2026-04-14): v1.0.3 — submitted to Chrome Web Store
 
 ### What's built and working
 - Vite + TypeScript multi-entry build (content.ts, background.ts, popup.ts, i18n.ts)
@@ -180,9 +180,17 @@ MODEL_DEFAULTS: downPaymentRatio=0.10, loanTermMonths=360, householdEarners=2, t
 - Vibe: artisanal minimalism — boutique café menu meets mortgage calculator
 - No entrance animations on widgets; subtle hover transitions only; `tabular-nums` for all prices
 
-## Repo
-- Private GitHub repo: WildJesus/srealitky-universes (separate from llm-lab monorepo)
-- May go public + Chrome Web Store eventually
+## Repo & Distribution
+- Public GitHub repo: **WildJesus/Unreal-Estate** (renamed from srealitky-universes)
+- Privacy policy: `PRIVACY.md` in repo root — linked from Chrome Web Store listing
+- **Chrome Web Store**: submitted v1.0.3 for review (2026-04-14)
+- Packaging: `npm run build` → `Compress-Archive dist\* unreal-estate-vX.Y.Z.zip` → upload ZIP
+- **manifest `description` field hard limit: 132 characters** — Chrome Web Store rejects on upload if exceeded
+
+## Chrome Web Store notes
+- Store icon: `icons/icon128.png` (128×128, from SVG via `generate-icons.mjs`)
+- Screenshots must be exactly 1280×800 or 640×400 — use `sharp` with `fit:'contain'` + white bg to resize
+- Privacy: no data collected; `chrome.storage` used only for UI prefs (lang, autoOpen, infoIconSeen)
 
 ## User Background
 Java + C# background, former Product Owner, no strong frontend preferences.
