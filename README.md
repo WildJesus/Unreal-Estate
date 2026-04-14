@@ -9,16 +9,8 @@ A Chrome extension that adds affordability context to every property listing on 
 You're looking at a flat in Prague for **8 500 000 Kč**. The extension adds this widget next to the price:
 
 ```
-┌──────────────────────────────────────────┐
-│  2026   8 500 000 Kč   (Burden 58%)      │
-│         Splátka: 41 200 Kč/měs           │
-│ ─────────────────────────────────────── │
-│  2015 ↓51%  4 175 000 Kč   (Burden 27%) │
-│         Splátka: ↓47%  21 900 Kč/měs    │
-│ ─────────────────────────────────────── │
-│  Equiv ↓54%  3 900 000 Kč               │
-│         Splátka: 18 900 Kč/měs          │
-└──────────────────────────────────────────┘
+<img width="416" height="309" alt="image" src="https://github.com/user-attachments/assets/f00061f4-d50f-4bfe-8fe8-37628937a48b" />
+
 ```
 
 **What these numbers mean:**
