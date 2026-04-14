@@ -2,6 +2,7 @@
 
 import {
   type BurdenComparison,
+  computeAllComparisons,
   computeBurdenComparison,
   formatCZK,
   formatBurdenPercent,
@@ -16,12 +17,20 @@ import { t, setLang, getLang, type Lang } from "./i18n";
 const CURRENT = getCurrentYearData();
 import { type CzechRegion, type LocationResult, extractLocationFromDetail, extractLocationFromCard } from "./universes/location";
 
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 
 // Feature flag: city comparison is not yet fully implemented — hidden until ready.
 const CITY_FEATURE_ENABLED = false;
 // Feature flag: debugger is a dev tool — hidden in production builds.
 const DEBUGGER_FEATURE_ENABLED = false;
+
+// ─── Burden Chart data ────────────────────────────────────────────────────────
+// Pre-computed once at module load; underlying data is static.
+// Representative Praha 2+kk flat (2026 median). Chosen so the 2026 point on
+// the burden chart (~60%) matches what users actually see on Praha listings.
+const CHART_REF_PRICE  = 13_000_000;
+const CHART_REF_REGION: CzechRegion = 'praha';
+const CHART_ALL_COMPARISONS = computeAllComparisons(CHART_REF_PRICE, CHART_REF_REGION);
 
 // Human-readable names for the 14 Czech kraje, used in the info popup walkthrough.
 const REGION_DISPLAY_NAMES: Record<CzechRegion, string> = {
@@ -609,6 +618,83 @@ function toggleDebugOverlay() {
   debugVisible ? hideDebugOverlay() : showDebugOverlay();
 }
 
+// ─── Burden Chart SVG builder ─────────────────────────────────────────────────
+// Pure function — no DOM access. Returns an SVG string for the burden-over-time
+// chart. Left of selectedYear: solid red line + fill. Right: dashed + lower opacity.
+
+function buildBurdenChartSVG(selectedYear: number | null): string {
+  const PL = 26, PR = 292, PT = 6, PB = 110;
+  const PW = PR - PL, PH = PB - PT;
+  const maxB = 1.0; // Y axis cap: 100%
+
+  const minYear = CHART_ALL_COMPARISONS[0].comparisonYear;
+  const maxYear = CHART_ALL_COMPARISONS[CHART_ALL_COMPARISONS.length - 1].comparisonYear;
+
+  const xOf = (yr: number) => PL + ((yr - minYear) / (maxYear - minYear)) * PW;
+  const yOf = (b: number)  => PB - (b / maxB) * PH;
+
+  const pts = CHART_ALL_COMPARISONS.map(c => ({
+    x: xOf(c.comparisonYear),
+    y: yOf(c.historicalBurdenRatio),
+    year: c.comparisonYear,
+  }));
+
+  const currentBurden = CHART_ALL_COMPARISONS[CHART_ALL_COMPARISONS.length - 1].currentBurdenRatio;
+  const refY = yOf(currentBurden);
+
+  const selIdx = selectedYear !== null
+    ? CHART_ALL_COMPARISONS.findIndex(c => c.comparisonYear === selectedYear)
+    : -1;
+  const divX = selIdx >= 0 ? xOf(selectedYear!) : null;
+
+  const ptsStr  = (arr: typeof pts) => arr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaStr = (arr: typeof pts) => arr.length < 2 ? '' :
+    `${ptsStr(arr)} ${arr[arr.length-1].x.toFixed(1)},${PB} ${arr[0].x.toFixed(1)},${PB}`;
+
+  const leftPts  = selIdx >= 0 ? pts.slice(0, selIdx + 1) : pts;
+  const rightPts = selIdx >= 0 ? pts.slice(selIdx)        : [];
+
+  // Y grid lines + labels
+  const grids = [0.25, 0.5, 0.75, 1.0].map(b => {
+    const gy = yOf(b).toFixed(1);
+    return `<line x1="${PL}" y1="${gy}" x2="${PR}" y2="${gy}" stroke="rgba(0,0,0,0.07)" stroke-width="1"/>` +
+      `<text x="${(PL - 3).toFixed(1)}" y="${gy}" text-anchor="end" dominant-baseline="middle" ` +
+      `font-family="Quicksand,sans-serif" font-size="7" fill="#aaaaaa">${(b * 100).toFixed(0)}%</text>`;
+  }).join('');
+
+  // X axis year labels
+  const xLabels = [2000, 2005, 2010, 2015, 2020, 2026].map(yr =>
+    `<text x="${xOf(yr).toFixed(1)}" y="${(PB + 9).toFixed(1)}" text-anchor="middle" ` +
+    `font-family="Quicksand,sans-serif" font-size="7" fill="#aaaaaa">${yr}</text>`
+  ).join('');
+
+  // Areas (fill under the line)
+  const leftArea  = leftPts.length  >= 2 ? `<polygon points="${areaStr(leftPts)}"  fill="rgba(220,38,38,0.10)"/>` : '';
+  const rightArea = rightPts.length >= 2 ? `<polygon points="${areaStr(rightPts)}" fill="rgba(220,38,38,0.04)"/>` : '';
+
+  // Lines
+  const leftLine  = leftPts.length  >= 2
+    ? `<polyline points="${ptsStr(leftPts)}"  fill="none" stroke="#dc2626"                stroke-width="1.5" stroke-linejoin="round"/>` : '';
+  const rightLine = rightPts.length >= 2
+    ? `<polyline points="${ptsStr(rightPts)}" fill="none" stroke="rgba(220,38,38,0.40)"  stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="3,3"/>` : '';
+
+  // Vertical divider at selected year
+  const divider = divX !== null
+    ? `<line x1="${divX.toFixed(1)}" y1="${PT}" x2="${divX.toFixed(1)}" y2="${PB}" stroke="rgba(220,38,38,0.45)" stroke-width="1"/>`
+    : '';
+
+  // Horizontal reference line at 2026 burden + label
+  const refLine =
+    `<line x1="${PL}" y1="${refY.toFixed(1)}" x2="${PR}" y2="${refY.toFixed(1)}" ` +
+    `stroke="rgba(220,38,38,0.28)" stroke-width="1" stroke-dasharray="4,3"/>` +
+    `<text x="${(PR - 2).toFixed(1)}" y="${(refY - 3).toFixed(1)}" text-anchor="end" ` +
+    `font-family="Quicksand,sans-serif" font-size="7" font-weight="700" fill="rgba(220,38,38,0.65)">${maxYear}</text>`;
+
+  return `<svg viewBox="0 0 318 122" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%">` +
+    grids + leftArea + rightArea + leftLine + rightLine + divider + refLine + xLabels +
+    `</svg>`;
+}
+
 // ─── Main Overlay ─────────────────────────────────────────────────────────────
 // Universe selector UI. Positioned bottom-left.
 
@@ -671,7 +757,8 @@ function buildMainOverlay(): HTMLElement {
       padding: 9px 14px; gap: 8px;
     }
     #su-main-overlay.su-minimized #su-mo-header { display: none; }
-    #su-main-overlay.su-minimized #su-mo-mini   { display: flex; }
+    #su-main-overlay.su-minimized #su-mo-mini   { display: flex; cursor: pointer; }
+    #su-main-overlay.su-minimized #su-mo-mini #su-mo-mini-close { cursor: pointer; }
     #su-main-overlay.su-minimized #su-mo-body   { display: none; }
 
     #su-mo-mini-label {
@@ -694,6 +781,12 @@ function buildMainOverlay(): HTMLElement {
 
     /* ── Body ── */
     #su-mo-body { padding: 4px 14px 12px; display: flex; flex-direction: column; }
+    #su-mo-disclaimer {
+      font-size: 10px; font-weight: 600; color: #aaaaaa;
+      letter-spacing: 0.01em; line-height: 1.5;
+      padding: 6px 0 4px; border-bottom: 1px solid rgba(0,0,0,0.06);
+      margin-bottom: 2px;
+    }
 
     .su-mo-section {
       padding: 10px 0;
@@ -826,6 +919,22 @@ function buildMainOverlay(): HTMLElement {
     .su-comp-pct-up   { color: #dc2626; background: rgba(220,38,38,0.10); }
     .su-comp-divider  { border: none; border-top: 1px solid rgba(0,0,0,0.07); margin: 3px 0; }
     .su-comp-nodata   { font-size: 12px; font-style: italic; color: #aaaaaa; text-align: center; padding: 4px 0; }
+
+    /* ── Burden chart ── */
+    #su-mo-burden-chart { padding-bottom: 4px; }
+    #su-mo-burden-chart .su-mo-section-head {
+      flex-direction: column; align-items: flex-start; gap: 2px;
+    }
+    .su-bc-head-badge {
+      font-size: 10px; font-weight: 600; color: #999999;
+      letter-spacing: 0.02em; white-space: nowrap;
+    }
+    #su-mo-burden-chart-legend {
+      font-size: 11px; font-weight: 600; color: #555555;
+      text-align: center; line-height: 1.5; min-height: 17px;
+      margin-bottom: 5px; white-space: nowrap; overflow: hidden;
+    }
+    .su-bc-mult { font-size: 15px; font-weight: 700; color: #dc2626; }
   `;
   document.head.appendChild(style);
 
@@ -863,9 +972,10 @@ function buildMainOverlay(): HTMLElement {
     </div>
 
     <div id="su-mo-body">
+      <p id="su-mo-disclaimer">${t('moDisclaimer')}</p>
+
       <div class="su-mo-section" id="su-mo-year-section">
         <div class="su-mo-section-head">
-          <input type="checkbox" class="su-mo-chk" id="su-mo-year-chk" checked />
           <span class="su-mo-section-title">${t('moYearSection')}</span>
         </div>
         <div class="su-mo-section-content">
@@ -897,6 +1007,17 @@ function buildMainOverlay(): HTMLElement {
         </div>
       </div>
 
+      <div class="su-mo-section" id="su-mo-burden-chart">
+        <div class="su-mo-section-head">
+          <span class="su-mo-section-title">${t('moBurdenChart')}</span>
+          <span id="su-bc-head-badge" class="su-bc-head-badge"></span>
+        </div>
+        <div class="su-mo-section-content">
+          <div id="su-mo-burden-chart-legend"></div>
+          <div id="su-mo-burden-chart-svg"></div>
+        </div>
+      </div>
+
       <div class="su-mo-section" id="su-mo-comparison" style="display:none;">
         <div class="su-mo-section-head">
           <span class="su-mo-section-title">${t('moComparison')}</span>
@@ -910,13 +1031,14 @@ function buildMainOverlay(): HTMLElement {
 
   let selectedYear: number | null = null;
 
-  const yearChk     = el.querySelector("#su-mo-year-chk") as HTMLInputElement;
   const cityChk     = el.querySelector("#su-mo-city-chk") as HTMLInputElement;
-  const yearSection = el.querySelector("#su-mo-year-section")!;
   const citySection = el.querySelector("#su-mo-city-section")!;
   const yearSlider  = el.querySelector("#su-year-slider") as HTMLInputElement;
   const yearDisplay = el.querySelector("#su-year-selected-display")!;
-  const miniFilters = el.querySelector("#su-mo-mini-filters")!;
+  const miniFilters     = el.querySelector("#su-mo-mini-filters")!;
+  const chartSvgEl      = el.querySelector("#su-mo-burden-chart-svg")    as HTMLDivElement;
+  const chartLegendEl   = el.querySelector("#su-mo-burden-chart-legend") as HTMLDivElement;
+  const chartHeadBadge  = el.querySelector("#su-bc-head-badge")          as HTMLSpanElement;;
 
   // Map slider integer index → actual dataset year (every position is valid).
   const availableYears = getAvailableYears();
@@ -935,11 +1057,33 @@ function buildMainOverlay(): HTMLElement {
   }
 
   function updateMiniFilters() {
-    if (yearChk.checked && selectedYear !== null) {
+    if (selectedYear !== null) {
       miniFilters.innerHTML =
         `<button class="su-mini-year-btn">${selectedYear}</button>`;
     } else {
       miniFilters.innerHTML = '';
+    }
+  }
+
+  function updateBurdenChart(year: number | null) {
+    chartSvgEl.innerHTML = buildBurdenChartSVG(year);
+    const refComp = CHART_ALL_COMPARISONS[CHART_ALL_COMPARISONS.length - 1];
+    const nowPct  = Math.round(refComp.currentBurdenRatio * 100);
+    const currentYear = CHART_ALL_COMPARISONS[CHART_ALL_COMPARISONS.length - 1].comparisonYear;
+    if (year !== null) {
+      const selComp = CHART_ALL_COMPARISONS.find(c => c.comparisonYear === year);
+      if (selComp) {
+        const mult    = selComp.stressMultiplier.toFixed(2);
+        const histPct = Math.round(selComp.historicalBurdenRatio * 100);
+        chartLegendEl.innerHTML = t('bcLegend', mult, year)
+          .replace(`${mult}×`, `<span class="su-bc-mult">${mult}×</span>`);
+        chartHeadBadge.textContent = year !== currentYear
+          ? `${year}: ${histPct}% · ${currentYear}: ${nowPct}%`
+          : `${currentYear}: ${nowPct}%`;
+      }
+    } else {
+      chartLegendEl.textContent = '';
+      chartHeadBadge.textContent = `${currentYear}: ${nowPct}%`;
     }
   }
 
@@ -960,20 +1104,10 @@ function buildMainOverlay(): HTMLElement {
       yearDisplay.classList.remove("su-has-year");
     }
     updateMiniFilters();
+    updateBurdenChart(year);
     updateDetailComparison();
     renderListingComparisons();
   }
-
-  yearChk.addEventListener("change", () => {
-    yearSection.classList.toggle("su-disabled", !yearChk.checked);
-    updateMiniFilters();
-    updateDetailComparison();
-    if (yearChk.checked && activeYear !== null) {
-      renderListingComparisons();
-    } else {
-      clearListingComparisons();
-    }
-  });
 
   if (CITY_FEATURE_ENABLED) {
     cityChk.addEventListener("change", () => {
@@ -998,20 +1132,22 @@ function buildMainOverlay(): HTMLElement {
     });
   });
 
+  // ─ button minimizes the overlay.
   el.querySelector("#su-mo-minimize")!.addEventListener("click", () => {
     updateMiniFilters();
     el.classList.add("su-minimized");
   });
-  // Year pill in the mini bar expands the overlay.
-  miniFilters.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).classList.contains("su-mini-year-btn")) {
-      el.classList.remove("su-minimized");
-    }
+  // X in the main header also minimizes (not closes).
+  el.querySelector("#su-mo-close")!.addEventListener("click", () => {
+    updateMiniFilters();
+    el.classList.add("su-minimized");
   });
-  el.querySelector("#su-mo-unminimize")!.addEventListener("click", () => {
+  // Clicking anywhere on the mini bar unminimizes — except the ✕ close button.
+  el.querySelector("#su-mo-mini")!.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("#su-mo-mini-close")) return;
     el.classList.remove("su-minimized");
   });
-  el.querySelector("#su-mo-close")!.addEventListener("click", hideMainOverlay);
+  // ✕ in the mini bar is the only way to fully hide.
   el.querySelector("#su-mo-mini-close")!.addEventListener("click", hideMainOverlay);
 
   // ⓘ buttons — show the info popup using the most-recently-rendered widget context.
@@ -1037,6 +1173,10 @@ function buildMainOverlay(): HTMLElement {
       pill.classList.toggle("su-active", parseInt(pill.dataset.year ?? "") === activeYear);
     });
     updateMiniFilters();
+    updateBurdenChart(activeYear);
+  } else {
+    // No year selected yet — render chart without a divider line.
+    updateBurdenChart(null);
   }
 
   return el;

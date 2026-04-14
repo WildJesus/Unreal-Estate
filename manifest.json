@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Unreal Estate",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Czech housing affordability in historical context — see what any property should cost today to match past mortgage burden. Not affiliated with Sreality.cz or Seznam.cz.",
   "icons": {
     "16": "icons/icon16.png",
