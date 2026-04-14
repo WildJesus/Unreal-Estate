@@ -14,6 +14,7 @@ const launchBtn     = document.getElementById('launch-btn')       as HTMLButtonE
 const debugBtn      = document.getElementById('debug-btn')        as HTMLButtonElement;
 const aboutBtn      = document.getElementById('about-btn')        as HTMLButtonElement;
 const status        = document.getElementById('status')           as HTMLDivElement;
+const popupTitle    = document.getElementById('su-popup-title')   as HTMLSpanElement;
 const labelAutoOpen = document.getElementById('label-auto-open')  as HTMLSpanElement;
 const labelLang     = document.getElementById('label-lang')       as HTMLSpanElement;
 const langCs        = document.getElementById('lang-cs')          as HTMLButtonElement;
@@ -22,6 +23,7 @@ const langEn        = document.getElementById('lang-en')          as HTMLButtonE
 // ─── Popup-local translations (5 keys — keeps popup bundle self-contained) ───
 
 const POPUP_STRINGS: Record<Lang, {
+  title:          string;
   autoTurnOn:     string;
   langLabel:      string;
   launchOverlay:  string;
@@ -30,6 +32,7 @@ const POPUP_STRINGS: Record<Lang, {
   notOnSreality:  string;
 }> = {
   cs: {
+    title:          'Historický srovnávač bydlení',
     autoTurnOn:     'Automaticky zapnout',
     langLabel:      'Jazyk',
     launchOverlay:  'Spustit overlay',
@@ -38,6 +41,7 @@ const POPUP_STRINGS: Record<Lang, {
     notOnSreality:  'Nejste na stránce sreality.cz.',
   },
   en: {
+    title:          'Historical Housing Comparator',
     autoTurnOn:     'Auto turn on',
     langLabel:      'Language',
     launchOverlay:  'Launch overlay',
@@ -51,6 +55,7 @@ const POPUP_STRINGS: Record<Lang, {
 
 function applyPopupLang(lang: Lang) {
   const s = POPUP_STRINGS[lang] ?? POPUP_STRINGS.cs;
+  popupTitle.textContent    = s.title;
   labelAutoOpen.textContent = s.autoTurnOn;
   labelLang.textContent     = s.langLabel;
   launchBtn.textContent     = s.launchOverlay;

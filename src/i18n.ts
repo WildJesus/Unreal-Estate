@@ -77,6 +77,9 @@ const T = {
     popupLaunchDebugger: 'Spustit debugger',
     popupNotOnSreality:  'Nejste na stránce sreality.cz.',
     popupLangLabel:      'Jazyk',
+
+    // ── Extension name ────────────────────────────────────────────────────────
+    extensionName:       'Historický srovnávač bydlení',
   },
 
   en: {
@@ -142,6 +145,9 @@ const T = {
     popupLaunchDebugger: 'Launch debugger',
     popupNotOnSreality:  'Not on a sreality.cz page.',
     popupLangLabel:      'Language',
+
+    // ── Extension name ────────────────────────────────────────────────────────
+    extensionName:       'Historical Housing Comparator',
   },
 } as const;
 
