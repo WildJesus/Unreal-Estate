@@ -11,6 +11,11 @@ function copyExtensionFiles(): Plugin {
         resolve(__dirname, "manifest.json"),
         resolve(__dirname, "dist/manifest.json")
       );
+      // Copy popup.html into dist/
+      copyFileSync(
+        resolve(__dirname, "popup.html"),
+        resolve(__dirname, "dist/popup.html")
+      );
       // Copy data/ folder into dist/data/
       mkdirSync(resolve(__dirname, "dist/data"), { recursive: true });
       cpSync(
@@ -39,6 +44,7 @@ export default defineConfig({
         content: resolve(__dirname, "src/content.ts"),
         background: resolve(__dirname, "src/background.ts"),
         sidebar: resolve(__dirname, "src/sidebar/sidebar.ts"),
+        popup: resolve(__dirname, "src/popup.ts"),
       },
       output: {
         entryFileNames: "[name].js",
